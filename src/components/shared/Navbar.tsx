@@ -37,7 +37,7 @@ export function Navbar() {
             />
             <div className="flex flex-col text-left">
               <span className="font-extrabold text-base sm:text-lg tracking-tight text-black group-hover:text-[#d39e00] transition-colors">
-                LabHub <span className="text-[#d39e00]">ST</span>
+                Hub de Laboratorios <span className="text-[#d39e00]">UPN</span>
               </span>
               <span className="text-[11px] font-medium text-[#6c757d] hidden sm:inline leading-none">
                 Automatización • Electrónica • Mecatrónica

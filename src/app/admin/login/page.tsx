@@ -132,7 +132,7 @@ export default function AdminLoginPage() {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="ej. martin.cernaa@gmail.com"
+                  placeholder="ej. correo@ejemplo.com"
                   className="block w-full pl-10 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FDBA30] focus:border-[#FDBA30] text-sm transition-all"
                 />
               </div>
