@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   PALETA OFICIAL DE COLORES EXTRAÍDA DE https://www.upn.edu.pe/
+   Primary Brand Gold/Yellow: #FDBA30 | Hover/Soft: #FDC979 | Deep Gold: #D39E00
+   Primary Dark / Black: #000000 & #212529 | Charcoal: #343A40
+   Grays & Surfaces: #F8F9FA, #F6F6F6, #E9ECEF, #DEE2E6, #6C757D, #495057
+   ============================================================================ */
+@theme {
+  --color-amber-50: #fff9eb;
+  --color-amber-100: #feefc7;
+  --color-amber-200: #fde08e;
+  --color-amber-300: #fdc979;
+  --color-amber-400: #fdba30;
+  --color-amber-500: #fdba30;
+  --color-amber-600: #d39e00;
+  --color-amber-700: #a87d00;
+  --color-amber-800: #7d5d00;
+  --color-amber-900: #523d00;
+
+  --color-slate-50: #f8f9fa;
+  --color-slate-100: #e9ecef;
+  --color-slate-200: #dee2e6;
+  --color-slate-300: #ced4da;
+  --color-slate-400: #adb5bd;
+  --color-slate-500: #6c757d;
+  --color-slate-600: #495057;
+  --color-slate-700: #343a40;
+  --color-slate-800: #212529;
+  --color-slate-900: #111315;
+  --color-slate-950: #000000;
+}
+
+@layer base {
+  :root {
+    --upn-yellow: #fdba30;
+    --upn-yellow-soft: #fdc979;
+    --upn-yellow-dark: #d39e00;
+    --upn-black: #000000;
+    --upn-charcoal: #212529;
+    --upn-dark-gray: #343a40;
+    --upn-muted: #6c757d;
+    --upn-surface: #f8f9fa;
+    --upn-border: #dee2e6;
+  }
+
+  body {
+    background-color: #f8f9fa;
+    color: #212529;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Scrollbars elegantes con identidad UPN */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #f8f9fa;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #adb5bd;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #6c757d;
+  }
+}
+
+/* Soporte para impresión de Actas y Comprobantes */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .no-print,
+  nav,
+  header,
+  footer,
+  button,
+  .toast-container {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-page-break {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .print-border {
+    border: 1px solid #adb5bd !important;
+  }
+
+  .print-shadow-none {
+    box-shadow: none !important;
+  }
+}

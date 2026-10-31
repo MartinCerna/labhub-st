@@ -1,0 +1,463 @@
+{
+  "labs": [
+    {
+      "id": "automatizacion",
+      "name": "Laboratorio de Automatización",
+      "shortName": "Automatización",
+      "code": "LAB-AUT",
+      "location": "Pabellón B - Piso 2 (Aula B-204)",
+      "description": "Estaciones PLC Siemens S7-1200/1500, tableros neumáticos/electroneumáticos Festo, variadores de frecuencia y redes industriales SCADA.",
+      "maxSimultaneousGroups": 4,
+      "accentColor": "#f59e0b",
+      "equipmentHighlights": [
+        "PLC Siemens S7",
+        "Módulos Festo",
+        "HMI & SCADA",
+        "Sensores Industriales"
+      ]
+    },
+    {
+      "id": "electronica",
+      "name": "Laboratorio de Electrónica",
+      "shortName": "Electrónica",
+      "code": "LAB-ELE",
+      "location": "Pabellón B - Piso 3 (Aula B-302)",
+      "description": "Bancos instrumentados con osciloscopios digitales, fuentes DC duales, generadores de funciones, estaciones de soldadura SMD y sistemas embebidos.",
+      "maxSimultaneousGroups": 6,
+      "accentColor": "#0ea5e9",
+      "equipmentHighlights": [
+        "Osciloscopios Digitales",
+        "Fuentes Reguladas Duales",
+        "Generadores RF",
+        "Estaciones SMD"
+      ]
+    },
+    {
+      "id": "mecatronica",
+      "name": "Laboratorio de Mecatrónica",
+      "shortName": "Mecatrónica",
+      "code": "LAB-MEC",
+      "location": "Pabellón C - Piso 1 (Aula C-105)",
+      "description": "Celdas robóticas colaborativas, manufactura aditiva/CNC, prototipado mecatrónico integral, actuadores servocontrolados y visión artificial.",
+      "maxSimultaneousGroups": 4,
+      "accentColor": "#10b981",
+      "equipmentHighlights": [
+        "Brazos Robóticos",
+        "Impresoras 3D & CNC",
+        "Sistemas de Visión",
+        "Control de Movimiento"
+      ]
+    }
+  ],
+  "advisors": [
+    {
+      "id": "adv-1",
+      "fullName": "Martín Aarón León Cerna",
+      "roleTitle": "Coordinador y Administrador General",
+      "career": "Ingeniería Mecatrónica",
+      "specialty": "Automatización Industrial, Robótica y Control de Procesos",
+      "advisoryTopics": [
+        "PLC y Redes Industriales",
+        "Robótica y Control PID",
+        "Diseño Mecatrónico y CAD 3D",
+        "Integración de Proyectos"
+      ],
+      "email": "martin.cernaa@gmail.com",
+      "username": "martin.cernaa@gmail.com",
+      "avatarInitials": "ML",
+      "badgeColor": "#d97706",
+      "active": true,
+      "weeklyAvailability": [
+        {
+          "dayOfWeek": 1,
+          "blockId": "B2",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B3",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B5",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B6",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B3",
+          "labId": "automatizacion"
+        }
+      ]
+    },
+    {
+      "id": "adv-2",
+      "fullName": "Juan Daniel Gomez Montes",
+      "roleTitle": "Administrador de Laboratorio",
+      "career": "Ingeniería Electrónica",
+      "specialty": "Sistemas Embebidos, Microcontroladores e Instrumentación",
+      "advisoryTopics": [
+        "Microcontroladores y Arduino/ESP32",
+        "Diseño de PCB y Circuitos",
+        "Instrumentación Electrónica",
+        "Sensores e IoT"
+      ],
+      "email": "juan.gomez@upn.edu.pe",
+      "username": "juan.gomez@upn.edu.pe",
+      "avatarInitials": "JG",
+      "badgeColor": "#0284c7",
+      "active": true,
+      "weeklyAvailability": [
+        {
+          "dayOfWeek": 2,
+          "blockId": "B3",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B4",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B5",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B6",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 6,
+          "blockId": "B2",
+          "labId": "electronica"
+        }
+      ]
+    },
+    {
+      "id": "adv-3",
+      "fullName": "Luis Fernando Rodriguez Alva",
+      "roleTitle": "Administrador de Laboratorio",
+      "career": "Ingeniería Mecatrónica",
+      "specialty": "Control Automático, Electroneumática y Manufactura",
+      "advisoryTopics": [
+        "Electroneumática y Actuadores",
+        "Control Automático",
+        "Modelado CAD e Impresión 3D",
+        "Mecanismos y Robótica"
+      ],
+      "email": "fernando.alva@upn.edu.pe",
+      "username": "fernando.alva@upn.edu.pe",
+      "avatarInitials": "LR",
+      "badgeColor": "#059669",
+      "active": true,
+      "weeklyAvailability": [
+        {
+          "dayOfWeek": 3,
+          "blockId": "B2",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B3",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B5",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B6",
+          "labId": "mecatronica"
+        }
+      ]
+    },
+    {
+      "id": "adv-4",
+      "fullName": "Saul Alexander Linares Franco",
+      "roleTitle": "Administrador de Laboratorio",
+      "career": "Ingeniería Mecatrónica",
+      "specialty": "Electrónica de Potencia, Prototipado Rápido e Impresión 3D",
+      "advisoryTopics": [
+        "Electrónica de Potencia",
+        "Impresión 3D y Laminado STL",
+        "Prototipado Electrónico",
+        "Programación de Sistemas"
+      ],
+      "email": "saul.linares@upn.edu.pe",
+      "username": "saul.linares@upn.edu.pe",
+      "avatarInitials": "SL",
+      "badgeColor": "#7c3aed",
+      "active": true,
+      "weeklyAvailability": [
+        {
+          "dayOfWeek": 1,
+          "blockId": "B6",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B7",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B3",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B4",
+          "labId": "automatizacion"
+        }
+      ]
+    }
+  ],
+  "recurringClasses": [
+    {
+      "id": "class-aut-1",
+      "labId": "automatizacion",
+      "dayOfWeek": 2,
+      "blockId": "B1",
+      "courseName": "Sistemas de Control Automático I",
+      "teacherName": "Ing. Carlos Alberto Mendoza Ríos",
+      "nrc": "4512"
+    },
+    {
+      "id": "class-aut-2",
+      "labId": "automatizacion",
+      "dayOfWeek": 4,
+      "blockId": "B7",
+      "courseName": "Redes Industriales y SCADA",
+      "teacherName": "Mg. Roberto Javier Paredes Luna",
+      "nrc": "4518"
+    },
+    {
+      "id": "class-ele-1",
+      "labId": "electronica",
+      "dayOfWeek": 1,
+      "blockId": "B4",
+      "courseName": "Circuitos Electrónicos II",
+      "teacherName": "Dra. Elena Patricia Vargas Soto",
+      "nrc": "3205"
+    },
+    {
+      "id": "class-ele-2",
+      "labId": "electronica",
+      "dayOfWeek": 3,
+      "blockId": "B8",
+      "courseName": "Sistemas Digitales Embebidos",
+      "teacherName": "Ing. Luis Fernando Quispe Huamán",
+      "nrc": "3210"
+    },
+    {
+      "id": "class-mec-1",
+      "labId": "mecatronica",
+      "dayOfWeek": 2,
+      "blockId": "B5",
+      "courseName": "Robótica Industrial y Móvil",
+      "teacherName": "Dr. Marco Antonio Villanueva Castro",
+      "nrc": "5840"
+    },
+    {
+      "id": "class-mec-2",
+      "labId": "mecatronica",
+      "dayOfWeek": 5,
+      "blockId": "B2",
+      "courseName": "Manufactura Asistida por Computadora (CAM)",
+      "teacherName": "Mg. Diana Carolina Salazar Torres",
+      "nrc": "5844"
+    }
+  ],
+  "slotBlocks": [],
+  "reservations": [],
+  "advisories": [],
+  "loans": [
+    {
+      "id": "loan-sample-001",
+      "code": "EQP-2026-0001",
+      "labId": "electronica",
+      "teacherName": "Dra. Elena Patricia Vargas Soto",
+      "cycle": "Ciclo VI",
+      "courseProgram": "Ingeniería Electrónica - Circuitos II",
+      "attendedByAdvisorId": "adv-2",
+      "attendedByName": "Juan Daniel Gomez Montes",
+      "items": [
+        {
+          "quantity": 1,
+          "equipmentName": "Osciloscopio Digital Rigol 100MHz 2 Canales",
+          "upnCode": "UPN-PAT-OSC-042"
+        },
+        {
+          "quantity": 1,
+          "equipmentName": "Generador de Funciones Arbitrarias GW Instek",
+          "upnCode": "UPN-PAT-GEN-019"
+        },
+        {
+          "quantity": 2,
+          "equipmentName": "Sondas Pasivas 10X con Pinza BNC",
+          "upnCode": "UPN-ACC-SND-088"
+        }
+      ],
+      "groupMembers": [
+        {
+          "fullName": "César Augusto Miranda Vela",
+          "nrc": "3205"
+        },
+        {
+          "fullName": "Patricia Lorena Romero Cruz",
+          "nrc": "3205"
+        }
+      ],
+      "responsibleName": "César Augusto Miranda Vela",
+      "responsibleUpnCode": "N00159483",
+      "signatureDataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAAA8CAYAAACF0L/3AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAH1SURBVHhe7dsxattAFIXh/c89Z20JdpmN4AowKewZ...firma_simulada",
+      "status": "PENDIENTE",
+      "createdAt": "2026-10-31T10:00:00.000Z",
+      "googleSynced": false
+    }
+  ],
+  "prints": [
+    {
+      "id": "print-sample-001",
+      "code": "3DP-2026-0001",
+      "studentFullName": "Giacomo Pierro Rossi Navarro",
+      "upnCode": "N00178302",
+      "teacherName": "Dr. Marco Antonio Villanueva Castro",
+      "course": "Robótica Industrial y Móvil",
+      "nrc": "5840",
+      "files": [
+        {
+          "id": "file-stl-001",
+          "originalName": "soporte_gripper_robotico.stl",
+          "storedFileName": "soporte_gripper_robotico.stl",
+          "sizeBytes": 684,
+          "format": "BINARY",
+          "triangleCount": 12,
+          "dimensionsMm": {
+            "x": 40,
+            "y": 40,
+            "z": 25
+          },
+          "estimatedVolumeCm3": 40,
+          "version": 1,
+          "uploadedAt": "2026-10-31T00:00:00.000Z",
+          "downloadUrl": "/api/prints/files/3DP-2026-0001/soporte_gripper_robotico.stl"
+        }
+      ],
+      "status": "EN COLA",
+      "statusHistory": [
+        {
+          "status": "ENVIADO",
+          "timestamp": "2026-10-31T00:00:00.000Z",
+          "actor": "Giacomo Pierro Rossi Navarro"
+        },
+        {
+          "status": "EN REVISION",
+          "timestamp": "2026-10-31T04:00:00.000Z",
+          "actor": "Saul Alexander Linares Franco",
+          "comment": "Geometría validada. Sin voladizos críticos que requieran soporte denso."
+        },
+        {
+          "status": "EN COLA",
+          "timestamp": "2026-10-31T08:00:00.000Z",
+          "actor": "Saul Alexander Linares Franco",
+          "comment": "Asignado a impresora Prusa i3 MK3S+ #2 con filamento PLA Negro."
+        }
+      ],
+      "googleSynced": false,
+      "createdAt": "2026-10-31T00:00:00.000Z",
+      "updatedAt": "2026-10-31T08:00:00.000Z"
+    }
+  ],
+  "teachersCatalog": [
+    "Ing. Carlos Alberto Mendoza Ríos",
+    "Dra. Elena Patricia Vargas Soto",
+    "Mg. Roberto Javier Paredes Luna",
+    "Ing. Luis Fernando Quispe Huamán",
+    "Mg. Diana Carolina Salazar Torres",
+    "Ing. Jorge Antonio Espinoza Vera",
+    "Dr. Marco Antonio Villanueva Castro",
+    "Ing. Gabriela Sofía Medina Paz"
+  ],
+  "googleConfig": {
+    "enabled": true,
+    "activeProvider": "GOOGLE_DRIVE",
+    "appsScriptWebhookUrl": "https://script.google.com/macros/s/AKfycbyvaLcBQXOv4XfD5LUqhYNauu6LOEUyHkmgmSyZTDeBDtP6A75FlN1UYn0GOJy8d2ZA/exec",
+    "webhookSecret": "",
+    "driveFolderName": "LabHub_ST_UPN",
+    "syncStlFilesToDrive": true,
+    "syncRecordsToSheets": true,
+    "syncCalendarAndEmail": true,
+    "syncDriveLoans": true,
+    "syncDrivePrints3D": true,
+    "syncCalendarAdvisories": true,
+    "syncSheetsDatabase": true,
+    "persistFullStateInDrive": true,
+    "generateLoanDocumentsInDrive": true,
+    "onedrive": {
+      "tenantId": "common",
+      "clientId": "",
+      "clientSecret": "",
+      "refreshToken": "",
+      "rootFolderPath": "LabHub_ST_UPN"
+    },
+    "lastSyncAt": "2026-10-31T21:28:27.188Z",
+    "lastSyncStatus": "SUCCESS",
+    "lastSyncMessage": "Conexión bidireccional exitosa con Google Workspace y Google Drive.",
+    "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1cYwMsDCaDEdiGPad--HaZTggSpcTk-YfhOIMMVCXEtc/edit",
+    "driveRootFolderUrl": "https://drive.google.com/drive/folders/1OQnvgdmRey0beMNkh7irqh5BQBNq7dY-"
+  },
+  "adminUsers": [
+    {
+      "id": "admin-martin",
+      "username": "martin.cernaa@gmail.com",
+      "fullName": "Martín Aarón León Cerna",
+      "email": "martin.cernaa@gmail.com",
+      "role": "COORDINADOR",
+      "advisorId": "adv-1",
+      "passwordHash": "42325c311f7e3430c00b105187a73c5388fa142dc9e3a8987158992548a52dab"
+    },
+    {
+      "id": "admin-juan",
+      "username": "juan.gomez@upn.edu.pe",
+      "fullName": "Juan Daniel Gomez Montes",
+      "email": "juan.gomez@upn.edu.pe",
+      "role": "ASISTENTE",
+      "advisorId": "adv-2",
+      "passwordHash": "42302f44e3fe91a090ac3727b44584a7f2ae227933f6989e010e180bb1b797be"
+    },
+    {
+      "id": "admin-fernando",
+      "username": "fernando.alva@upn.edu.pe",
+      "fullName": "Luis Fernando Rodriguez Alva",
+      "email": "fernando.alva@upn.edu.pe",
+      "role": "ASISTENTE",
+      "advisorId": "adv-3",
+      "passwordHash": "c992e78406363f83832e04b582226b88329139b173fbeb34f106c4f9e8b46cd8"
+    },
+    {
+      "id": "admin-saul",
+      "username": "saul.linares@upn.edu.pe",
+      "fullName": "Saul Alexander Linares Franco",
+      "email": "saul.linares@upn.edu.pe",
+      "role": "ASISTENTE",
+      "advisorId": "adv-4",
+      "passwordHash": "90052acb64f2ac6927e00984dd88fc75f1a46e06ea1f91cda88281a41ac83904"
+    }
+  ],
+  "sequences": {
+    "reservation": 1,
+    "advisory": 1,
+    "loan": 2,
+    "print": 2
+  }
+}
