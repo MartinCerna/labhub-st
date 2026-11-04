@@ -688,7 +688,7 @@ export function EquipmentLoanForm({
                                 <option value="">-- Seleccionar equipo del laboratorio --</option>
                                 {labCatalog.map((cat) => (
                                   <option key={cat.name} value={cat.name}>
-                                    {cat.name} [{cat.totalUnits} uds.]
+                                    {cat.name}
                                   </option>
                                 ))}
                                 <option value="__OTHER__">+ Otro equipo o material (escribir manualmente)...</option>

@@ -197,23 +197,13 @@ export const UPN_LAB_COURSES: string[] = [
 export const LAB_EQUIPMENT_CATALOG: Record<LabId, LabEquipmentCatalogItem[]> = {
   electronica: [
     { name: 'Kit de Entrenamiento en Microcontroladores (Microchip AC164162)', brand: 'MICROCHIP', model: 'AC164162', totalUnits: 10, sampleCodes: ['4-001358', '4-001354', '4-001352'] },
-    { name: 'Set Lego Mindstorm EV3 (Lego EV03)', brand: 'LEGO', model: 'EV03', totalUnits: 6, sampleCodes: ['1-021681', '1-021682', '4-000449'] },
     { name: 'Tarjeta DAQ USB National Instruments 6008', brand: 'NATIONAL INSTRUMENTS', model: '6008', totalUnits: 10, sampleCodes: ['1-016534', '1-016535', '1-016536'] },
-    { name: 'Robot Arduino Motor', brand: 'ARDUINO', model: 'ROBOT MOTOR', totalUnits: 1, sampleCodes: ['1-017739'] },
-    { name: 'Cámara IP (Foscam F18918W)', brand: 'FOSCAN', model: 'F18918W', totalUnits: 2, sampleCodes: ['1-017825', '1-017826'] },
-    { name: 'Robot Humanoide (EZ-Robot JD)', brand: 'EZ-ROBOT', model: 'JD', totalUnits: 1, sampleCodes: ['S/C'] },
     { name: 'Tarjeta Raspberry Pi', brand: 'RASPBERRY PI', model: 'RPi', totalUnits: 6, sampleCodes: ['S/C'] },
-    { name: 'Fuente de Raspberry (Lontech 5V 2A)', brand: 'LONTECH', model: '5V2A', totalUnits: 6, sampleCodes: ['S/C'] },
-    { name: 'Teclado con Touchpad para Raspberry (Logitech K400 / Antrix / Sunrose)', brand: 'LOGITECH', model: 'K400', totalUnits: 6, sampleCodes: ['S/C'] },
     { name: 'Programador de Microcontrolador PIC (Microchip PICkit 4)', brand: 'MICROCHIP', model: 'PICKIT 4', totalUnits: 4, sampleCodes: ['S/C'] },
     { name: 'Protoboard 800 Puntos', brand: 'GENÉRICO', model: '800P', totalUnits: 10, sampleCodes: ['S/C'] },
     { name: 'Tarjeta de Desarrollo FPGA DE0-CV (Terasic)', brand: 'TERASIC', model: 'DE0-CV', totalUnits: 4, sampleCodes: ['4-000560', '4-001233', '4-001234'] },
     { name: 'Tarjeta de Desarrollo FPGA DE2 (Terasic)', brand: 'TERASIC', model: 'DE2', totalUnits: 1, sampleCodes: ['4-000021'] },
-    { name: 'Estación de Soldadura Eléctrica (Newacalox 878D)', brand: 'NEWACALOX', model: '878D', totalUnits: 1, sampleCodes: ['S/C'] },
-    { name: 'Soldador Eléctrico Cautín (Newacalox 220V)', brand: 'NEWACALOX', model: '220V', totalUnits: 2, sampleCodes: ['S/C'] },
     { name: 'Tarjeta Arduino UNO', brand: 'ARDUINO', model: 'UNO', totalUnits: 8, sampleCodes: ['S/C'] },
-    { name: 'Microscopio Electrónico Webcam USB 1000X', brand: 'DIGITAL MICROSCOPE', model: '1000X', totalUnits: 2, sampleCodes: ['4-000584', '4-000585'] },
-    { name: 'PLC Industrial (Siemens S7-1200)', brand: 'SIEMENS', model: 'S7-1200', totalUnits: 1, sampleCodes: ['4-001057'] },
   ],
   mecatronica: [
     { name: 'Kit de Entrenamiento en Microcontroladores (Microchip CNANO DM182028)', brand: 'MICROCHIP', model: 'CNANO DM182028', totalUnits: 8, sampleCodes: ['4-000979', '4-000974', '4-000975', '4-000976', '4-000977', '4-000978', '4-000980', '4-000981'] },
