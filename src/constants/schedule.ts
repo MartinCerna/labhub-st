@@ -155,6 +155,7 @@ export const DEFAULT_TEACHERS_CATALOG: string[] = [
 ];
 
 export const SAFETY_PROTOCOL_YOUTUBE_URL =
+  process.env.NEXT_PUBLIC_SAFETY_PROTOCOL_YOUTUBE_URL ||
   'https://www.youtube.com/results?search_query=Protocolo+de+Seguridad+Laboratorios+UPN';
 
 export const UPN_LAB_COURSES: string[] = [

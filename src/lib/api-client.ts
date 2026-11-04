@@ -101,6 +101,27 @@ export const apiClient = {
       body: JSON.stringify(payload),
     }),
 
+  searchStudentAdvisories: (query: string) =>
+    requestJson<{ advisories: AdvisoryRequest[] }>(
+      `/api/advisories?query=${encodeURIComponent(query.trim())}`
+    ),
+
+  cancelStudentAdvisory: (codeOrId: string, upnCode?: string) => {
+    const params = new URLSearchParams();
+    if (codeOrId.startsWith('ASE-')) {
+      params.set('code', codeOrId.trim());
+    } else {
+      params.set('id', codeOrId.trim());
+    }
+    if (upnCode) {
+      params.set('upnCode', upnCode.trim().toUpperCase());
+    }
+    return requestJson<{ ok: boolean; message?: string }>(
+      `/api/advisories?${params.toString()}`,
+      { method: 'DELETE' }
+    );
+  },
+
   // Módulo 3: Préstamo de Equipos
   createEquipmentLoan: (payload: CreateEquipmentLoanPayload) =>
     requestJson<{ loan: EquipmentLoan; message: string }>('/api/loans', {
@@ -232,6 +253,12 @@ export const apiClient = {
       method: 'PATCH',
       body: JSON.stringify({ id, status, observationComment }),
     }),
+
+  deletePrint3DRequest: (id: string) =>
+    requestJson<{ ok: boolean; message?: string }>(
+      `/api/prints?id=${encodeURIComponent(id)}`,
+      { method: 'DELETE' }
+    ),
 
   updateTeachersCatalog: (teachers: string[]) =>
     requestJson<{ teachers: string[] }>('/api/admin/teachers', {

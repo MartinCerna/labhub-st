@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AdminDashboardSummary,
   Print3DRequest,
@@ -29,19 +29,30 @@ import {
   History,
   X,
   ChevronDown,
+  Trash2,
 } from 'lucide-react';
 
 interface AdminPrints3DTabProps {
   dashboard: AdminDashboardSummary;
   onRefresh: () => Promise<void>;
+  initialSearchQuery?: string;
 }
 
-export function AdminPrints3DTab({ dashboard, onRefresh }: AdminPrints3DTabProps) {
+export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: AdminPrints3DTabProps) {
   const { showToast } = useToast();
 
   const printRequests = dashboard.printRequests;
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // A5: Filtro contextual instantáneo desde el Buscador Global
+  useEffect(() => {
+    if (initialSearchQuery && initialSearchQuery.trim()) {
+      setSearchQuery(initialSearchQuery);
+      setSelectedStatus('ALL');
+    }
+  }, [initialSearchQuery]);
 
   // Modal 3D STL
   const [viewingStl, setViewingStl] = useState<{ url: string; name: string } | null>(null);
@@ -112,6 +123,26 @@ export function AdminPrints3DTab({ dashboard, onRefresh }: AdminPrints3DTabProps
     }
   };
 
+  // A2: Eliminar ticket de impresión 3D
+  const handleDeleteRequest = async (req: Print3DRequest) => {
+    const confirmed = window.confirm(
+      `¿Confirmas la eliminación permanente del ticket ${req.code} (${req.studentFullName})?\n\nEsta acción no se puede deshacer y liberará los archivos asociados.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(req.id);
+      await apiClient.deletePrint3DRequest(req.id);
+      showToast(`Ticket ${req.code} eliminado correctamente.`, 'success');
+      await onRefresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al eliminar el ticket de impresión 3D.';
+      showToast(msg, 'error');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   // Cálculo de tiempo restante de observación (48 horas)
   const getObservationTimeLeft = (expiresAtStr?: string) => {
     if (!expiresAtStr) return null;
@@ -130,6 +161,19 @@ export function AdminPrints3DTab({ dashboard, onRefresh }: AdminPrints3DTabProps
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
+      {/* Nota informativa de depuración automática 48h (A2) */}
+      <div className="p-4 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-3 shadow-xs">
+        <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+        <div className="leading-relaxed">
+          <strong className="font-bold text-amber-950 dark:text-amber-100">
+            Aviso de Depuración Automática:
+          </strong>{' '}
+          Los tickets en estado <span className="font-bold text-rose-700 dark:text-rose-400">OBSERVADO</span> que superan las{' '}
+          <strong className="font-bold">48 horas</strong> sin subsanación por parte del estudiante son eliminados
+          automáticamente por el sistema para mantener la cola de fabricación eficiente.
+        </div>
+      </div>
+
       {/* BARRA DE FILTROS POR LOS 7 ESTADOS */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
         <div className="flex flex-col gap-2">
@@ -261,8 +305,8 @@ export function AdminPrints3DTab({ dashboard, onRefresh }: AdminPrints3DTabProps
                       )}
                     </div>
 
-                    {/* Botón Cambiar Estado */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    {/* Botones de Acción */}
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
                       {req.driveFolderUrl && (
                         <a
                           href={req.driveFolderUrl}
@@ -281,6 +325,16 @@ export function AdminPrints3DTab({ dashboard, onRefresh }: AdminPrints3DTabProps
                       >
                         Cambiar Estado
                         <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={deletingId === req.id}
+                        onClick={() => handleDeleteRequest(req)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-900/50 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                        title="Eliminar permanentemente este ticket"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{deletingId === req.id ? 'Eliminando...' : 'Eliminar Ticket'}</span>
                       </button>
                     </div>
                   </div>

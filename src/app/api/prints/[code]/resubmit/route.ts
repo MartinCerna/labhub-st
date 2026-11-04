@@ -42,10 +42,13 @@ export async function POST(
     // Validar plazo de 48 horas
     const now = new Date();
     if (target.observationExpiresAt && now.getTime() > new Date(target.observationExpiresAt).getTime()) {
+      await dbRepository.updateDatabase((db) => {
+        db.prints = db.prints.filter((p) => p.id !== target.id);
+      });
       return NextResponse.json(
         {
           error:
-            'El plazo máximo de 48 horas para subsanar las observaciones ha expirado. Comuníquese directamente con el coordinador de laboratorios.',
+            'El plazo máximo de 48 horas para subsanar las observaciones ha vencido y su Ticket ha sido eliminado según las normas del HUB Tecnológico.',
         },
         { status: 400 }
       );

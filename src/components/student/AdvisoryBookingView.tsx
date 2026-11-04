@@ -24,6 +24,8 @@ import {
   Search,
   BookmarkCheck,
   Filter,
+  ExternalLink,
+  XCircle,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import {
@@ -54,6 +56,9 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 
 export function AdvisoryBookingView() {
   const { showToast } = useToast();
+
+  // Pestaña activa: Agendar Asesoría vs Mis Asesorías / Cancelar Turno (A1)
+  const [activeTab, setActiveTab] = useState<'book' | 'my-advisories'>('book');
 
   // Asesores
   const [advisors, setAdvisors] = useState<AdvisorProfile[]>([]);
@@ -106,6 +111,19 @@ export function AdvisoryBookingView() {
     reservation: LabReservation;
   } | null>(null);
 
+  // --------------------------------------------------------------------------
+  // Estados para A1: Mis Asesorías / Cancelar Turno
+  // --------------------------------------------------------------------------
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchingAdvisories, setSearchingAdvisories] = useState<boolean>(false);
+  const [searchResults, setSearchResults] = useState<AdvisoryRequest[]>([]);
+  const [hasSearched, setHasSearched] = useState<boolean>(false);
+
+  // Modal de cancelación de asesoría
+  const [advisoryToCancel, setAdvisoryToCancel] = useState<AdvisoryRequest | null>(null);
+  const [cancelUpnConfirm, setCancelUpnConfirm] = useState<string>('');
+  const [cancelling, setCancelling] = useState<boolean>(false);
+
   // Carga inicial del catálogo de asesores
   useEffect(() => {
     apiClient
@@ -147,6 +165,9 @@ export function AdvisoryBookingView() {
         setNrc(saved.nrc);
       }
       setHasRememberedProfile(true);
+      if (saved.upnCode) {
+        setSearchQuery(saved.upnCode);
+      }
     }
   }, []);
 
@@ -411,6 +432,10 @@ export function AdvisoryBookingView() {
       setSelectedDate(null);
       setSelectedSlotLabId(null);
       setIsFormOpen(false);
+      // Prellenar búsqueda de asesorías con el código UPN del estudiante
+      if (students[0]?.upnCode) {
+        setSearchQuery(students[0].upnCode.trim().toUpperCase());
+      }
       // Refrescar grilla
       setRefreshKey((k) => k + 1);
     } catch (err: unknown) {
@@ -421,28 +446,159 @@ export function AdvisoryBookingView() {
     }
   };
 
+  // --------------------------------------------------------------------------
+  // A1: Búsqueda y Cancelación de Asesorías del Estudiante
+  // --------------------------------------------------------------------------
+  const handleSearchAdvisories = async (e?: React.FormEvent, customQuery?: string) => {
+    if (e) e.preventDefault();
+    const q = (customQuery !== undefined ? customQuery : searchQuery).trim().toUpperCase();
+    if (!q) {
+      showToast('Ingresa tu Código UPN (N00...) o Código de Asesoría (ASE-...)', 'info');
+      return;
+    }
+
+    setSearchingAdvisories(true);
+    setHasSearched(true);
+    try {
+      const res = await apiClient.searchStudentAdvisories(q);
+      setSearchResults(res.advisories || []);
+      if (!res.advisories || res.advisories.length === 0) {
+        showToast('No se encontraron asesorías con ese criterio.', 'info');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al buscar asesorías';
+      showToast(msg, 'error');
+      setSearchResults([]);
+    } finally {
+      setSearchingAdvisories(false);
+    }
+  };
+
+  const handleOpenCancelModal = (adv: AdvisoryRequest) => {
+    setAdvisoryToCancel(adv);
+    if (searchQuery.trim().toUpperCase().startsWith('N00')) {
+      setCancelUpnConfirm(searchQuery.trim().toUpperCase());
+    } else if (students[0]?.upnCode) {
+      setCancelUpnConfirm(students[0].upnCode.trim().toUpperCase());
+    } else {
+      setCancelUpnConfirm('');
+    }
+  };
+
+  const handleConfirmCancelAdvisory = async () => {
+    if (!advisoryToCancel) return;
+    const upn = cancelUpnConfirm.trim().toUpperCase();
+    if (!upn) {
+      showToast('Debes ingresar tu Código UPN para confirmar la cancelación.', 'warning');
+      return;
+    }
+
+    setCancelling(true);
+    try {
+      const res = await apiClient.cancelStudentAdvisory(advisoryToCancel.code, upn);
+      showToast(res.message || 'Asesoría cancelada correctamente.', 'success');
+      setAdvisoryToCancel(null);
+      setCancelUpnConfirm('');
+      // Refrescar lista de búsqueda y grilla semanal
+      handleSearchAdvisories();
+      setRefreshKey((k) => k + 1);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al cancelar la asesoría';
+      showToast(msg, 'error');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const renderAdvisoryStatusBadge = (status: string) => {
+    if (status === 'PROGRAMADA') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Programada</span>
+        </span>
+      );
+    }
+    if (status === 'ATENDIDA') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-300 shadow-2xs">
+          <Check className="w-3.5 h-3.5 text-blue-600" />
+          <span>Atendida</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-rose-600 border border-slate-300 line-through shadow-2xs">
+        <XCircle className="w-3.5 h-3.5 text-rose-500" />
+        <span>Cancelada</span>
+      </span>
+    );
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* ===================================================================== */}
       {/* ENCABEZADO Y SELECTOR VISUAL DE LOS ASESORES CON FILTROS (M11)        */}
       {/* ===================================================================== */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 text-sky-800 border border-sky-200 text-xs font-semibold mb-2">
-            <Users className="w-3.5 h-3.5 text-sky-600" />
-            <span>Módulo 2 • Asesorías Técnicas Especializadas</span>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 text-sky-800 border border-sky-200 text-xs font-semibold mb-2">
+              <Users className="w-3.5 h-3.5 text-sky-600" />
+              <span>Módulo 2 • Asesorías Técnicas Especializadas</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              {activeTab === 'book'
+                ? 'Solicitar Asesoría con Asistente o Docente'
+                : 'Mis Asesorías y Cancelación de Turno'}
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-3xl">
+              {activeTab === 'book'
+                ? 'Selecciona al asesor técnico especializado. La asesoría reservará automáticamente 1 cupo en el laboratorio asignado y enviará la invitación a su Google Calendar.'
+                : 'Consulta tus asesorías registradas, descarga la invitación de calendario (.ics) o cancela un turno si no podrás asistir.'}
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Solicitar Asesoría con Asistente o Docente
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-3xl">
-            Selecciona al asesor técnico especializado. La asesoría reservará automáticamente 1 cupo
-            en el laboratorio asignado y enviará la invitación a su Google Calendar.
-          </p>
+
+          {/* Selector de Pestañas Superior (A1) */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl self-start md:self-auto border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setActiveTab('book')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'book'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Calendar className="w-4 h-4 text-sky-600" />
+              <span>Agendar Asesoría Académica</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('my-advisories');
+                const q = searchQuery || (loadSavedStudentProfile()?.upnCode ?? '');
+                if (q && !hasSearched) {
+                  if (!searchQuery) setSearchQuery(q);
+                  handleSearchAdvisories(undefined, q);
+                }
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'my-advisories'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Search className="w-4 h-4 text-sky-600" />
+              <span>Mis Asesorías / Cancelar Turno</span>
+            </button>
+          </div>
         </div>
 
-        {/* M11: Buscador y Píldoras de Filtro Rápido por Especialidad/Tema */}
-        <div className="space-y-3 pt-1 border-t border-slate-100">
+        {activeTab === 'book' && (
+          <>
+            {/* M11: Buscador y Píldoras de Filtro Rápido por Especialidad/Tema */}
+            <div className="space-y-3 pt-1 border-t border-slate-100">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             {/* Buscador por texto */}
             <div className="relative flex-1 max-w-md">
@@ -591,7 +747,241 @@ export function AdvisoryBookingView() {
             })}
           </div>
         )}
+          </>
+        )}
       </div>
+
+      {/* ===================================================================== */}
+      {/* PESTAÑA 2: MIS ASESORÍAS / CANCELAR TURNO (A1)                        */}
+      {/* ===================================================================== */}
+      {activeTab === 'my-advisories' && (
+        <div className="space-y-6">
+          {/* Barra de Búsqueda */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+            <h2 className="text-base font-bold text-slate-900 mb-1">
+              Buscar Asesorías Registradas
+            </h2>
+            <p className="text-xs text-slate-500 mb-4">
+              Ingresa tu Código UPN (ej. <span className="font-mono font-semibold">N00123456</span>) o
+              el Código de Asesoría generado (ej.{' '}
+              <span className="font-mono font-semibold">ASE-2026-0001</span>).
+            </p>
+
+            <form onSubmit={handleSearchAdvisories} className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value.toUpperCase())}
+                  placeholder="Ej. N00123456 o ASE-2026-0001"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 font-mono focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={searchingAdvisories}
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                {searchingAdvisories ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Buscando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4" />
+                    <span>Buscar Asesorías</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* Resultados de la Búsqueda */}
+          {hasSearched && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-800">
+                  Resultados encontrados ({searchResults.length})
+                </h3>
+                {searchResults.length > 0 && (
+                  <span className="text-[11px] text-slate-500">
+                    Mostrando asesorías académicas asociadas a tu consulta
+                  </span>
+                )}
+              </div>
+
+              {searchResults.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900">
+                    No se encontraron asesorías registradas
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    No existe ninguna asesoría con el código o UPN ingresado. Verifica que el dato sea
+                    correcto o solicita un nuevo turno en la pestaña &quot;Agendar Asesoría Académica&quot;.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {searchResults.map((adv) => {
+                    const labCfg = LAB_MAP[adv.labId];
+                    const isScheduled = adv.status === 'PROGRAMADA';
+
+                    return (
+                      <div
+                        key={adv.id}
+                        className={`bg-white rounded-2xl border p-5 shadow-xs transition-all flex flex-col justify-between ${
+                          isScheduled
+                            ? 'border-slate-200 hover:border-sky-400'
+                            : 'border-slate-200 bg-slate-50/60 opacity-85'
+                        }`}
+                      >
+                        <div className="space-y-3">
+                          {/* Cabecera de la Asesoría */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-extrabold text-sm text-slate-900">
+                                  {adv.code}
+                                </span>
+                                {adv.linkedReservationCode && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-900">
+                                    Cupo Lab: {adv.linkedReservationCode}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs font-semibold text-sky-800 block mt-0.5">
+                                Asesor: {adv.advisorName}
+                              </span>
+                            </div>
+                            {renderAdvisoryStatusBadge(adv.status)}
+                          </div>
+
+                          {/* Ficha rápida de detalles */}
+                          <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 rounded-xl p-3 border border-slate-100">
+                            <div>
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                                Fecha y Bloques
+                              </span>
+                              <span className="font-semibold text-slate-800">
+                                {adv.date}
+                              </span>
+                              <div className="text-[10px] font-mono text-sky-700 mt-0.5">
+                                {adv.blockIds
+                                  .map(
+                                    (b) =>
+                                      `${b} (${TIME_BLOCK_MAP[b]?.startTime || ''})`
+                                  )
+                                  .join(', ')}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                                Laboratorio Asignado
+                              </span>
+                              <span className="font-medium text-slate-800 truncate block">
+                                {labCfg?.name || adv.labId}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono mt-0.5 block">
+                                NRC: {adv.nrc}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Proyecto, Curso e Integrantes */}
+                          <div className="text-xs space-y-1">
+                            <div>
+                              <strong className="text-slate-600 font-medium">Proyecto: </strong>
+                              <span className="text-slate-900 font-semibold">
+                                {adv.projectName}
+                              </span>
+                            </div>
+                            <div>
+                              <strong className="text-slate-600 font-medium">Curso: </strong>
+                              <span className="text-slate-700">{adv.course}</span>
+                            </div>
+                            {adv.topicNotes && (
+                              <div>
+                                <strong className="text-slate-600 font-medium">
+                                  Consulta / Tema:{' '}
+                                </strong>
+                                <span className="text-slate-700 italic">{adv.topicNotes}</span>
+                              </div>
+                            )}
+                            {adv.students && adv.students.length > 0 && (
+                              <div className="pt-1">
+                                <strong className="text-slate-600 font-medium">
+                                  Integrantes ({adv.students.length}):{' '}
+                                </strong>
+                                <span className="text-slate-800">
+                                  {adv.students
+                                    .map((s) => `${s.fullName} (${s.upnCode})`)
+                                    .join(', ')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Botones de Acción */}
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            {/* Descarga de Calendario .ics */}
+                            <a
+                              href={adv.icsDownloadUrl || `/api/advisories/${adv.id}/ics`}
+                              download={`Asesoria_${adv.code}.ics`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors"
+                              title="Descargar invitación para Outlook o Calendar (.ics)"
+                            >
+                              <Download className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Descargar .ics</span>
+                            </a>
+
+                            {adv.calendarEventUrl && (
+                              <a
+                                href={adv.calendarEventUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-semibold transition-colors"
+                                title="Abrir en Google Calendar"
+                              >
+                                <CalendarPlus className="w-3.5 h-3.5 text-sky-600" />
+                                <ExternalLink className="w-3 h-3 text-sky-500" />
+                              </a>
+                            )}
+                          </div>
+
+                          {/* Botón Cancelar Asesoría si está PROGRAMADA */}
+                          {isScheduled && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCancelModal(adv)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Cancelar Asesoría</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* PESTAÑA 1: AGENDAR ASESORÍA ACADÉMICA                                 */}
+      {/* ===================================================================== */}
+      {activeTab === 'book' && (
+        <>
 
       {/* ===================================================================== */}
       {/* BARRA DE NAVEGACIÓN SEMANAL (0 O 1)                                   */}
@@ -1223,6 +1613,8 @@ export function AdvisoryBookingView() {
           </form>
         </div>
       )}
+        </>
+      )}
 
       {/* ===================================================================== */}
       {/* MODAL / COMPROBANTE DE ASESORÍA AGENDADA                              */}
@@ -1310,6 +1702,103 @@ export function AdvisoryBookingView() {
                 className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Cerrar comprobante
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL DE CONFIRMACIÓN PARA CANCELAR ASESORÍA (A1)                     */}
+      {/* ===================================================================== */}
+      {advisoryToCancel && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  ¿Cancelar Asesoría Académica?
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Esta acción liberará el cupo de laboratorio reservado y cancelará la cita agendada.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Asesoría:</span>
+                <span className="font-mono font-bold text-slate-900">
+                  {advisoryToCancel.code}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Asesor:</span>
+                <span className="font-semibold text-slate-800">
+                  {advisoryToCancel.advisorName}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Fecha y Bloques:</span>
+                <span className="font-semibold text-slate-800">
+                  {advisoryToCancel.date} ({advisoryToCancel.blockIds.join(', ')})
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Proyecto:</span>
+                <span className="text-slate-800 truncate max-w-[200px]">
+                  {advisoryToCancel.projectName}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Ingresa tu Código UPN de Estudiante para confirmar <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={cancelUpnConfirm}
+                onChange={(e) => setCancelUpnConfirm(e.target.value.toUpperCase())}
+                placeholder="Ej. N00123456"
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+              />
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                Por seguridad, solo un estudiante registrado en la asesoría puede cancelarla.
+              </span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdvisoryToCancel(null);
+                  setCancelUpnConfirm('');
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={handleConfirmCancelAdvisory}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {cancelling ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Cancelando...</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>Sí, Cancelar Asesoría</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

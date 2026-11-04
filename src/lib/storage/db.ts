@@ -757,7 +757,7 @@ function buildInitialDatabase(): LabHubDatabase {
     observationComment:
       'El espesor de pared en el alma del engranaje es de 0.8mm (mínimo admitido: 1.5mm). Además los dientes tienen caras no conformadas (non-manifold). Favor de reforzar espesor y resubir archivo STL corregido antes del vencimiento del plazo.',
     observedAt: observedNow.toISOString(),
-    observationExpiresAt: new Date(observedNow.getTime() + 72 * 3600 * 1000).toISOString(),
+    observationExpiresAt: new Date(observedNow.getTime() + 48 * 3600 * 1000).toISOString(),
     statusHistory: [
       {
         status: 'ENVIADO',
@@ -774,7 +774,7 @@ function buildInitialDatabase(): LabHubDatabase {
         timestamp: observedNow.toISOString(),
         actor: 'Saul Alexander Linares Franco',
         comment:
-          'El espesor de pared en el alma del engranaje es de 0.8mm (mínimo admitido: 1.5mm). Se concede plazo de 72 horas para subsanación.',
+          'El espesor de pared en el alma del engranaje es de 0.8mm (mínimo admitido: 1.5mm). Se concede plazo de 48 horas para subsanación.',
       },
     ],
     googleSynced: false,
@@ -886,6 +886,19 @@ export function normalizeDatabase(db: LabHubDatabase): LabHubDatabase {
         }
       }
     }
+  }
+
+  if (Array.isArray(db.prints)) {
+    const nowMs = Date.now();
+    db.prints = db.prints.filter((p) => {
+      if (p.status === 'OBSERVADO' && p.observationExpiresAt) {
+        const expMs = new Date(p.observationExpiresAt).getTime();
+        if (!Number.isNaN(expMs) && expMs <= nowMs) {
+          return false; // Ticket eliminado automáticamente tras vencer las 48h sin subsanación
+        }
+      }
+      return true;
+    });
   }
 
   return db;

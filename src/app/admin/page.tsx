@@ -54,6 +54,7 @@ export default function AdminPage() {
   // M13: Buscador Global Rápido en el Panel Admin
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [contextualSearchCode, setContextualSearchCode] = useState<string>('');
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   interface GlobalSearchResultItem {
@@ -199,6 +200,9 @@ export default function AdminPage() {
 
   const handleSelectSearchResult = (item: GlobalSearchResultItem) => {
     setActiveTab(item.tab);
+    if (item.tab !== 'labs') {
+      setContextualSearchCode(item.code);
+    }
     setGlobalSearchQuery('');
     setIsSearchFocused(false);
     showToast(`Navegando a ${item.category} (${item.code})...`, 'info');
@@ -549,6 +553,7 @@ export default function AdminPage() {
           <AdminAdvisoriesTab
             dashboard={dashboard}
             onRefresh={() => loadDashboard(true)}
+            initialSearchQuery={contextualSearchCode}
           />
         )}
 
@@ -571,6 +576,7 @@ export default function AdminPage() {
           <AdminLoansTab
             dashboard={dashboard}
             onRefresh={() => loadDashboard(true)}
+            initialSearchQuery={contextualSearchCode}
           />
         )}
 
@@ -578,6 +584,7 @@ export default function AdminPage() {
           <AdminPrints3DTab
             dashboard={dashboard}
             onRefresh={() => loadDashboard(true)}
+            initialSearchQuery={contextualSearchCode}
           />
         )}
       </main>

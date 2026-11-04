@@ -231,3 +231,30 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: message }, { status });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getAdminSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const id = new URL(request.url).searchParams.get('id')?.trim();
+    if (!id) {
+      return NextResponse.json({ error: 'ID o código de solicitud requerido.' }, { status: 400 });
+    }
+
+    await dbRepository.updateDatabase((db) => {
+      db.prints = db.prints.filter((p) => p.id !== id && p.code !== id);
+    });
+
+    return NextResponse.json({
+      ok: true,
+      message: 'Ticket de impresión 3D eliminado correctamente.',
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error al eliminar ticket 3D';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+

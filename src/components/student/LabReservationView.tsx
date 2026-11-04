@@ -116,6 +116,8 @@ export function LabReservationView({ initialLabId = 'automatizacion' }: LabReser
 
   // Check obligatorio de capacitación de protocolo de seguridad (M3)
   const [safetyProtocolChecked, setSafetyProtocolChecked] = useState<boolean>(false);
+  // Modal informativo del protocolo de seguridad y pasos de evaluación (A3)
+  const [showSafetyGuideModal, setShowSafetyGuideModal] = useState<boolean>(false);
 
   // Recordatorio de datos en navegador (M18)
   const [hasRememberedProfile, setHasRememberedProfile] = useState<boolean>(false);
@@ -1522,7 +1524,7 @@ export function LabReservationView({ initialLabId = 'automatizacion' }: LabReser
                     </div>
                   </div>
 
-                  {/* Enlace destacado a YouTube */}
+                  {/* Enlace destacado a YouTube y botón de Guía del Protocolo (A3) */}
                   <div className="pt-1 flex flex-wrap items-center gap-2">
                     <a
                       href={SAFETY_PROTOCOL_YOUTUBE_URL}
@@ -1534,6 +1536,14 @@ export function LabReservationView({ initialLabId = 'automatizacion' }: LabReser
                       <span>Ver vídeo de capacitación en YouTube</span>
                       <ExternalLink className="w-3.5 h-3.5 opacity-80" />
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => setShowSafetyGuideModal(true)}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-amber-100/70 text-amber-950 border border-amber-300 text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-amber-600" />
+                      <span>Ver pasos del protocolo y evaluación</span>
+                    </button>
                     <span className="text-[11px] text-amber-800">
                       (Al concluir el vídeo, no olvides registrar tus datos en el enlace de evaluación)
                     </span>
@@ -1776,6 +1786,124 @@ export function LabReservationView({ initialLabId = 'automatizacion' }: LabReser
               >
                 Cerrar comprobante
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL INFORMATIVO: GUÍA DEL PROTOCOLO DE SEGURIDAD Y EVALUACIÓN (A3)  */}
+      {/* ===================================================================== */}
+      {showSafetyGuideModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200 space-y-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 leading-snug">
+                    Protocolo de Seguridad de Laboratorios UPN
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Cumplimiento normativo institucional ISO 21001 y bioseguridad
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSafetyGuideModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <p className="text-slate-600 leading-relaxed">
+                Para garantizar la integridad y el buen uso del equipamiento especializado, todo estudiante debe completar estos <strong className="text-slate-900">3 pasos obligatorios</strong> antes de ingresar a los laboratorios:
+              </p>
+
+              {/* Paso 1 */}
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/80">
+                <div className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 font-extrabold text-xs flex items-center justify-center shrink-0">
+                  1
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-slate-900 text-xs">
+                    1. Visualizar el vídeo de inducción de seguridad del laboratorio
+                  </h4>
+                  <p className="text-slate-600 leading-relaxed text-[11.5px]">
+                    Revisa detalladamente las normas de bioseguridad, uso obligatorio de EPP (guardapolvo, lentes y calzado cerrado), señalización de rutas de evacuación y uso de extintores en las instalaciones UPN.
+                  </p>
+                </div>
+              </div>
+
+              {/* Paso 2 */}
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-sky-50/60 border border-sky-200/80">
+                <div className="w-7 h-7 rounded-lg bg-sky-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                  2
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-slate-900 text-xs">
+                    2. Registrar sus datos académicos, docente y NRC en el registro en línea
+                  </h4>
+                  <p className="text-slate-600 leading-relaxed text-[11.5px]">
+                    Al inicio o conclusión del vídeo, ingresa tus datos (Código UPN, Carrera, Asignatura y NRC) para certificar tu asistencia y vincular la constancia a tu expediente estudiantil.
+                  </p>
+                </div>
+              </div>
+
+              {/* Paso 3 */}
+              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80">
+                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                  3
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-slate-900 text-xs">
+                    3. Aprobar la evaluación del protocolo ISO 21001
+                  </h4>
+                  <p className="text-slate-600 leading-relaxed text-[11.5px]">
+                    Responde el breve cuestionario en línea de verificación de conocimientos de seguridad y buenas prácticas de laboratorio para habilitar tu pase de ingreso a las prácticas libres.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+              <a
+                href={SAFETY_PROTOCOL_YOUTUBE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors shadow-2xs"
+              >
+                <Video className="w-4 h-4" />
+                <span>Ir al vídeo en YouTube</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+              </a>
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSafetyGuideModal(false)}
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cerrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSafetyProtocolChecked(true);
+                    setShowSafetyGuideModal(false);
+                    showToast('Capacitación y evaluación marcadas como completadas.', 'success');
+                  }}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-xs transition-all cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Ya completé la capacitación y evaluación (Marcar casilla)</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

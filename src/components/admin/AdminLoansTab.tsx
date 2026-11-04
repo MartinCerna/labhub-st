@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AdminDashboardSummary,
   EquipmentLoan,
@@ -32,15 +32,24 @@ import {
 interface AdminLoansTabProps {
   dashboard: AdminDashboardSummary;
   onRefresh: () => Promise<void>;
+  initialSearchQuery?: string;
 }
 
-export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
+export function AdminLoansTab({ dashboard, onRefresh, initialSearchQuery }: AdminLoansTabProps) {
   const { showToast } = useToast();
 
   const loans = dashboard.loans;
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedLabId, setSelectedLabId] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
+
+  // A5: Filtro contextual instantáneo desde el Buscador Global
+  useEffect(() => {
+    if (initialSearchQuery && initialSearchQuery.trim()) {
+      setSearchQuery(initialSearchQuery);
+      setSelectedStatus('TODOS');
+    }
+  }, [initialSearchQuery]);
 
   // Préstamo seleccionado para modal de inspección / impresión
   const [activeLoanModal, setActiveLoanModal] = useState<EquipmentLoan | null>(null);
@@ -146,7 +155,7 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
               type="button"
               onClick={() => setSelectedStatus('ALL')}
               className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-                selectedStatus === 'ALL'
+                selectedStatus === 'ALL' || selectedStatus === 'TODOS'
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}

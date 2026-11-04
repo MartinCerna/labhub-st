@@ -9,6 +9,40 @@ import {
 import { dbRepository } from '@/lib/storage/db';
 import { buildAdvisoryCalendarDetails, buildGoogleCalendarUrl } from '@/lib/calendar/ics';
 import { googleBridge } from '@/lib/google/bridge';
+import { getAdminSessionFromRequest, requireAdminSession } from '@/lib/auth';
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get('query')?.trim().toLowerCase() || '';
+    const db = await dbRepository.getDatabase();
+
+    if (!query || query.length < 3) {
+      const adminSession = await getAdminSessionFromRequest(request);
+      if (adminSession) {
+        return NextResponse.json({ advisories: db.advisories });
+      }
+      return NextResponse.json({ advisories: [] });
+    }
+
+    const results = db.advisories.filter((a) => {
+      const codeMatch = a.code.toLowerCase().includes(query);
+      const resMatch = a.linkedReservationCode?.toLowerCase().includes(query) ?? false;
+      const projectMatch = a.projectName.toLowerCase().includes(query);
+      const studentMatch = a.students.some(
+        (s) =>
+          s.upnCode.toLowerCase().includes(query) ||
+          s.fullName.toLowerCase().includes(query)
+      );
+      return codeMatch || resMatch || projectMatch || studentMatch;
+    });
+
+    return NextResponse.json({ advisories: results });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error al consultar asesorías';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -332,6 +366,14 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const session = await getAdminSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json(
+        { error: 'No autorizado. Sesión de administrador requerida.' },
+        { status: 401 }
+      );
+    }
+
     const body = (await request.json()) as { id: string; status: AdvisoryRequest['status'] };
     const { id, status } = body;
 
@@ -369,3 +411,71 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id')?.trim();
+    const code = searchParams.get('code')?.trim().toUpperCase();
+    const upnCode = searchParams.get('upnCode')?.trim().toUpperCase();
+
+    if (!id && !code) {
+      return NextResponse.json(
+        { error: 'Debe especificar el id o código de la asesoría a cancelar.' },
+        { status: 400 }
+      );
+    }
+
+    const adminSession = await getAdminSessionFromRequest(request);
+
+    const updated = await dbRepository.updateDatabase(async (db) => {
+      const target = db.advisories.find(
+        (a) => (id && a.id === id) || (code && a.code.toUpperCase() === code)
+      );
+
+      if (!target) {
+        const error: Error & { status?: number } = new Error('Asesoría no encontrada.');
+        error.status = 404;
+        throw error;
+      }
+
+      if (!adminSession) {
+        const studentMatches = upnCode
+          ? target.students.some((s) => s.upnCode.trim().toUpperCase() === upnCode)
+          : false;
+
+        if (!studentMatches) {
+          const error: Error & { status?: number } = new Error(
+            'El Código UPN ingresado no coincide con los estudiantes registrados en esta asesoría.'
+          );
+          error.status = 403;
+          throw error;
+        }
+      }
+
+      target.status = 'CANCELADA';
+
+      if (target.linkedReservationId) {
+        const linkedRes = db.reservations.find(
+          (r) => r.id === target.linkedReservationId
+        );
+        if (linkedRes) {
+          linkedRes.status = 'CANCELADA';
+        }
+      }
+
+      return target;
+    });
+
+    return NextResponse.json({
+      ok: true,
+      advisory: updated,
+      message: 'Asesoría y reserva vinculada canceladas correctamente.',
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error al cancelar asesoría';
+    const status = (error as any)?.status || 400;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
