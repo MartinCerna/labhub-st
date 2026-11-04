@@ -436,20 +436,20 @@ export function LabReservationView({ initialLabId = 'automatizacion' }: LabReser
           </div>
         </div>
 
-        {/* Tabla Responsiva con Scroll Horizontal */}
+        {/* Tabla Responsiva y Compacta (Lunes a Sábado visible sin scroll forzado) */}
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse min-w-[840px] text-left">
+          <table className="w-full border-collapse table-fixed text-left min-w-[700px] sm:min-w-full">
             <thead>
               <tr className="bg-slate-900 text-white text-xs">
-                <th className="py-3 px-3 font-semibold uppercase tracking-wider w-36 border-r border-slate-800">
-                  Bloque Horario
+                <th className="py-2.5 px-1.5 sm:px-2 font-semibold uppercase tracking-wider w-[12%] sm:w-[10%] border-r border-slate-800 text-center">
+                  <span className="text-[10px] sm:text-xs">Bloque</span>
                 </th>
                 {scheduleData?.days.map((day) => (
-                  <th key={day.date} className="py-3 px-3 font-semibold border-r border-slate-800 last:border-r-0 text-center">
-                    <div className="text-amber-400 uppercase tracking-wider text-[11px] font-bold">
+                  <th key={day.date} className="py-2.5 px-1 sm:px-1.5 font-semibold border-r border-slate-800 last:border-r-0 text-center w-[14.66%] sm:w-[15%]">
+                    <div className="text-amber-400 uppercase tracking-wider text-[10px] sm:text-[11px] font-extrabold truncate">
                       {day.dayName}
                     </div>
-                    <div className="text-white text-xs font-medium">
+                    <div className="text-white text-[9.5px] sm:text-[11px] font-medium">
                       {day.date.split('-').reverse().slice(0, 2).join('/')}
                     </div>
                   </th>
@@ -460,9 +460,9 @@ export function LabReservationView({ initialLabId = 'automatizacion' }: LabReser
               {TIME_BLOCKS.map((tb) => (
                 <tr key={tb.id} className="hover:bg-slate-50/50 transition-colors">
                   {/* Celda del Bloque Horario */}
-                  <td className="py-3 px-3 bg-slate-50 font-medium text-slate-700 border-r border-slate-200 align-middle">
-                    <div className="font-bold text-slate-900">{tb.id}</div>
-                    <div className="text-[11px] text-slate-500 font-mono mt-0.5">{tb.label}</div>
+                  <td className="py-2 px-1 sm:px-1.5 bg-slate-50/90 font-medium text-slate-700 border-r border-slate-200 text-center align-middle">
+                    <div className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">{tb.id}</div>
+                    <div className="text-[8.5px] sm:text-[9.5px] text-slate-500 font-mono leading-tight mt-0.5 whitespace-nowrap">{tb.label}</div>
                   </td>
 
                   {/* Celdas para cada uno de los 6 días (Lunes a Sábado) */}
@@ -477,7 +477,7 @@ export function LabReservationView({ initialLabId = 'automatizacion' }: LabReser
                       <td
                         key={slotKey}
                         onClick={() => handleSlotClick(day.date, tb.id, state)}
-                        className={`p-2 border-r border-slate-200 last:border-r-0 transition-all align-top ${
+                        className={`p-1 sm:p-1.5 border-r border-slate-200 last:border-r-0 transition-all align-top ${
                           isSelected
                             ? 'bg-amber-100/90 ring-2 ring-inset ring-amber-500 shadow-inner'
                             : isAvailable
@@ -486,58 +486,60 @@ export function LabReservationView({ initialLabId = 'automatizacion' }: LabReser
                         }`}
                       >
                         {isSelected ? (
-                          <div className="p-2 rounded-lg bg-amber-500 text-slate-950 font-bold flex flex-col items-center justify-center gap-1 shadow-xs">
-                            <div className="flex items-center gap-1 text-[11px]">
-                              <Check className="w-3.5 h-3.5" />
+                          <div className="p-1 sm:p-1.5 rounded-lg bg-amber-500 text-slate-950 font-bold flex flex-col items-center justify-center gap-0.5 shadow-xs h-full min-h-[46px]">
+                            <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px]">
+                              <Check className="w-3 h-3" />
                               <span>Elegido</span>
                             </div>
-                            <span className="text-[10px] font-medium opacity-90">
+                            <span className="text-[8px] sm:text-[8.5px] font-medium opacity-90">
                               {slot?.availableGroups} libres
                             </span>
                           </div>
                         ) : state === 'DISPONIBLE' ? (
-                          <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 hover:border-emerald-400 text-emerald-800 transition-colors">
-                            <div className="flex items-center justify-between font-bold text-[11px]">
-                              <span>Disponible</span>
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <div className="p-1 sm:p-1.5 rounded-lg bg-emerald-50/90 border border-emerald-200 hover:border-emerald-400 text-emerald-800 transition-colors h-full min-h-[46px] flex flex-col justify-between">
+                            <div className="flex items-center justify-between font-bold text-[9.5px] sm:text-[10.5px] leading-tight">
+                              <span className="truncate">Disponible</span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 ml-1" />
                             </div>
-                            <div className="text-[10px] text-emerald-700 font-medium mt-1">
-                              {slot?.availableGroups} de {slot?.maxGroups} grupos libres
+                            <div className="text-[8.5px] sm:text-[9.5px] text-emerald-700 font-semibold mt-1 leading-tight">
+                              {slot?.availableGroups}/{slot?.maxGroups} libres
                             </div>
                           </div>
                         ) : state === 'CLASE' ? (
-                          <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-900">
-                            <div className="font-bold text-[10px] truncate uppercase tracking-tight">
-                              {slot?.classInfo?.courseName || 'Clase Lectiva'}
-                            </div>
-                            <div className="text-[10px] text-blue-700 truncate mt-0.5">
-                              {slot?.classInfo?.teacherName || 'Docente UPN'}
+                          <div className="p-1 sm:p-1.5 rounded-lg bg-blue-50/95 border border-blue-200 text-blue-900 h-full min-h-[46px] flex flex-col justify-between" title={`${slot?.classInfo?.courseName} - ${slot?.classInfo?.teacherName}`}>
+                            <div>
+                              <div className="font-bold text-[8.5px] sm:text-[9.5px] leading-tight line-clamp-2 uppercase tracking-tight text-blue-950">
+                                {slot?.classInfo?.courseName || 'Clase Lectiva'}
+                              </div>
+                              <div className="text-[8px] sm:text-[8.5px] text-blue-800 leading-tight truncate mt-0.5 font-medium">
+                                {slot?.classInfo?.teacherName || 'Docente UPN'}
+                              </div>
                             </div>
                             {slot?.classInfo?.nrc && (
-                              <div className="text-[9px] font-mono text-blue-600 mt-0.5">
+                              <div className="text-[7.5px] sm:text-[8px] font-mono text-blue-600 mt-0.5">
                                 NRC: {slot.classInfo.nrc}
                               </div>
                             )}
                           </div>
                         ) : state === 'BLOQUEADO' ? (
-                          <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-600">
-                            <div className="font-semibold text-[10px] text-slate-700 truncate">
+                          <div className="p-1 sm:p-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 h-full min-h-[46px] flex flex-col justify-between">
+                            <div className="font-semibold text-[8.5px] sm:text-[9.5px] text-slate-700 truncate">
                               Bloqueado
                             </div>
-                            <div className="text-[9px] text-slate-500 truncate mt-0.5">
-                              {slot?.blockReason || 'Mantenimiento / Evento'}
+                            <div className="text-[8px] sm:text-[8.5px] text-slate-500 truncate mt-0.5">
+                              {slot?.blockReason || 'Evento'}
                             </div>
                           </div>
                         ) : state === 'COMPLETO' ? (
-                          <div className="p-2 rounded-lg bg-orange-50 border border-orange-200 text-orange-800">
-                            <div className="font-bold text-[10px]">Agotado</div>
-                            <div className="text-[9px] text-orange-700 mt-0.5">
-                              0/{slot?.maxGroups} cupos libres
+                          <div className="p-1 sm:p-1.5 rounded-lg bg-orange-50 border border-orange-200 text-orange-800 h-full min-h-[46px] flex flex-col justify-between">
+                            <div className="font-bold text-[8.5px] sm:text-[9.5px]">Agotado</div>
+                            <div className="text-[8px] sm:text-[8.5px] text-orange-700 mt-0.5">
+                              0/{slot?.maxGroups} libres
                             </div>
                           </div>
                         ) : (
-                          <div className="p-2 rounded-lg bg-slate-50 text-slate-400 text-center">
-                            <span className="text-[10px]">Pasado</span>
+                          <div className="py-2.5 px-1 rounded-lg bg-slate-50 text-slate-400 text-center h-full min-h-[46px] flex items-center justify-center">
+                            <span className="text-[8.5px] sm:text-[9.5px]">Pasado</span>
                           </div>
                         )}
                       </td>
