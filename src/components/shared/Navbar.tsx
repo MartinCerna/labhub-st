@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { ChevronDown } from 'lucide-react';
 
 interface NavItem {
   href: string;
@@ -19,6 +20,36 @@ const NAV_ITEMS: NavItem[] = [
 
 export function Navbar() {
   const pathname = usePathname();
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar menú al cambiar de ruta
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
+
+  // Cerrar al hacer clic o tap fuera del contenedor
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Obtener nombre de la sección actual
+  const currentItem = NAV_ITEMS.find((item) => pathname.startsWith(item.href));
+  const currentSectionLabel = currentItem ? currentItem.label : 'Módulos';
 
   return (
     <nav className="sticky top-0 z-40 w-full border-b-2 border-[#fdba30] bg-white text-[#212529] shadow-2xs no-print">
@@ -71,38 +102,76 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Indicador en barra superior para pantallas móviles si está en /admin */}
-          {pathname.startsWith('/admin') && (
+          {/* Elemento derecho en pantallas móviles */}
+          {pathname.startsWith('/admin') ? (
             <div className="md:hidden flex items-center">
               <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-[#fdba30]/20 border border-[#fdba30] text-xs font-bold text-black">
                 Administración
               </span>
             </div>
+          ) : (
+            <div className="md:hidden flex items-center" ref={dropdownRef}>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsOpen((prev) => !prev)}
+                  aria-expanded={isOpen}
+                  aria-haspopup="true"
+                  aria-label="Seleccionar módulo"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-[#fdba30] text-black shadow-2xs border border-[#e0a800]/40 active:scale-95 transition-all"
+                >
+                  <span>{currentSectionLabel}</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isOpen ? 'rotate-180' : ''
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {isOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 rounded-xl bg-white shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                    {pathname !== '/' && (
+                      <>
+                        <Link
+                          href="/"
+                          onClick={() => setIsOpen(false)}
+                          className="flex items-center px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-100 hover:text-black font-medium transition-colors"
+                        >
+                          Inicio
+                        </Link>
+                        <div className="my-1 border-t border-slate-100" />
+                      </>
+                    )}
+
+                    {NAV_ITEMS.map((item) => {
+                      const isActive = pathname.startsWith(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setIsOpen(false)}
+                          className={`flex items-center justify-between px-3.5 py-2 text-xs transition-colors ${
+                            isActive
+                              ? 'bg-[#fdba30]/20 text-black font-bold'
+                              : 'text-slate-700 hover:bg-slate-100 hover:text-black font-medium'
+                          }`}
+                        >
+                          <span>{item.label}</span>
+                          {isActive && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#d39e00]" />
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
-
-        {/* Fila móvil compacta cuando se navega dentro de los módulos */}
-        {pathname !== '/' && !pathname.startsWith('/admin') && (
-          <div className="md:hidden border-t border-slate-100 py-1.5 flex items-center justify-around gap-1 overflow-x-auto">
-            {NAV_ITEMS.map((item) => {
-              const isActive = pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`px-2.5 py-1 rounded-full text-xs transition-colors shrink-0 ${
-                    isActive
-                      ? 'bg-[#fdba30] text-black font-bold shadow-2xs'
-                      : 'text-slate-700 hover:bg-slate-100 hover:text-black font-medium'
-                  }`}
-                >
-                  {item.shortLabel}
-                </Link>
-              );
-            })}
-          </div>
-        )}
       </div>
     </nav>
   );
 }
+
