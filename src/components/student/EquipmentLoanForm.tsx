@@ -1004,7 +1004,7 @@ export function EquipmentLoanForm({
               <div className="flex justify-between">
                 <span className="text-slate-500">Fecha y Hora de Registro:</span>
                 <span className="font-mono text-slate-700">
-                  {new Date(createdLoan.createdAt).toLocaleString()}
+                  {new Date(createdLoan.createdAt).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}
                 </span>
               </div>
             </div>
@@ -1197,13 +1197,13 @@ export function EquipmentLoanForm({
                   {searchedLoan.handedOutAt && (
                     <div className="flex justify-between text-blue-700">
                       <span>Entregado en Uso:</span>
-                      <span className="font-mono">{new Date(searchedLoan.handedOutAt).toLocaleString()}</span>
+                      <span className="font-mono">{new Date(searchedLoan.handedOutAt).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}</span>
                     </div>
                   )}
                   {searchedLoan.deliveredAt && (
                     <div className="flex justify-between text-emerald-700">
                       <span>Devuelto al Laboratorio:</span>
-                      <span className="font-mono">{new Date(searchedLoan.deliveredAt).toLocaleString()}</span>
+                      <span className="font-mono">{new Date(searchedLoan.deliveredAt).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}</span>
                     </div>
                   )}
                 </div>

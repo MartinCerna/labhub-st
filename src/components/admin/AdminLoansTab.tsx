@@ -679,7 +679,7 @@ export function AdminLoansTab({ dashboard, onRefresh, initialSearchQuery }: Admi
                     Recepción y Conformidad de Laboratorio
                   </p>
                   <p className="mt-1">
-                    Devolución recepcionada el {activeLoanModal.deliveredAt || activeLoanModal.createdAt} por:{' '}
+                    Devolución recepcionada el {activeLoanModal.deliveredAt ? new Date(activeLoanModal.deliveredAt).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' }) : activeLoanModal.createdAt ? new Date(activeLoanModal.createdAt).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' }) : '—'} por:{' '}
                     <strong>{activeLoanModal.deliveredByAdmin || 'Personal de Laboratorio'}</strong>
                   </p>
                   {activeLoanModal.adminNotes && (

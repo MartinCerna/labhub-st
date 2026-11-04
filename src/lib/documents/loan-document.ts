@@ -55,14 +55,14 @@ export function generateLoanActaHtml(loan: EquipmentLoan): string {
   const labFullName = labNameMap[loan.labId] || `Laboratorio: ${loan.labId}`;
 
   const formattedCreated = new Date(loan.createdAt).toLocaleString('es-PE', {
-    dateStyle: 'full',
-    timeStyle: 'medium',
+    dateStyle: 'short',
+    timeStyle: 'short',
   });
 
   const formattedDelivered = loan.deliveredAt
     ? new Date(loan.deliveredAt).toLocaleString('es-PE', {
-        dateStyle: 'full',
-        timeStyle: 'medium',
+        dateStyle: 'short',
+        timeStyle: 'short',
       })
     : 'Pendiente de entrega/devolución';
 

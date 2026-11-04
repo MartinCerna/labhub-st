@@ -407,7 +407,7 @@ export function Print3DPortalView({
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
             {mode === 'tracking'
               ? 'Consulta el estado técnico en vivo de tus modelos, la línea de tiempo de 7 estados y responde a observaciones técnicas.'
-              : 'Sube tus modelos en formato .stl, visualízalos en 3D en tiempo real y gestiona tus piezas de ingeniería.'}
+              : 'Sube tus modelos en formato .stl, valida sus dimensiones y gestiona tus piezas de ingeniería.'}
           </p>
         </div>
 
@@ -815,23 +815,6 @@ export function Print3DPortalView({
                             </div>
                           </div>
                         </div>
-
-                        {/* Botón Vista Previa 3D */}
-                        <div className="pt-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setViewerFile({
-                                file: item.file,
-                                fileName: item.file.name,
-                              })
-                            }
-                            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition-colors cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>Vista Previa 3D Interactiva</span>
-                          </button>
-                        </div>
                       </div>
                     );
                   })}
@@ -1128,22 +1111,6 @@ export function Print3DPortalView({
                           </div>
                         </div>
                       </div>
-
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setViewerFile({
-                              downloadUrl: fileMeta.downloadUrl,
-                              fileName: fileMeta.originalName,
-                            })
-                          }
-                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Ver Modelo 3D</span>
-                        </button>
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -1188,17 +1155,7 @@ export function Print3DPortalView({
         </div>
       )}
 
-      {/* ===================================================================== */}
-      {/* MODAL VISOR STL 3D                                                    */}
-      {/* ===================================================================== */}
-      {viewerFile && (
-        <StlViewerModal
-          file={viewerFile.file}
-          downloadUrl={viewerFile.downloadUrl}
-          fileName={viewerFile.fileName}
-          onClose={() => setViewerFile(null)}
-        />
-      )}
+
     </div>
   );
 }
@@ -1459,13 +1416,6 @@ function ObservationPanel({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onViewStl(item.file)}
-                      className="text-xs text-indigo-600 hover:underline font-semibold"
-                    >
-                      Previsualizar
-                    </button>
                     <button
                       type="button"
                       onClick={() => setResubmitFiles((prev) => prev.filter((_, i) => i !== idx))}
