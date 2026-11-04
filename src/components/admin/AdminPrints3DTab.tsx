@@ -11,7 +11,6 @@ import { PRINT_3D_STATUSES } from '@/constants/schedule';
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/shared/ToastProvider';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { StlViewerModal } from '@/components/shared/StlViewerModal';
 import {
   Printer,
   Search,
@@ -53,9 +52,6 @@ export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: A
       setSelectedStatus('ALL');
     }
   }, [initialSearchQuery]);
-
-  // Modal 3D STL
-  const [viewingStl, setViewingStl] = useState<{ url: string; name: string } | null>(null);
 
   // Modal de Cambio de Estado
   const [editingRequest, setEditingRequest] = useState<Print3DRequest | null>(null);
@@ -424,23 +420,14 @@ export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: A
                             </div>
 
                             {/* Botones de acción del archivo */}
-                            <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setViewingStl({ url: file.downloadUrl, name: file.originalName })}
-                                className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
-                              >
-                                <Eye className="w-3 h-3" />
-                                Vista 3D
-                              </button>
-
+                            <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end">
                               <a
                                 href={file.downloadUrl}
                                 download={file.originalName}
-                                className="flex-1 inline-flex items-center justify-center gap-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-[11px] font-semibold transition-colors"
+                                className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-[11px] font-semibold transition-colors"
                               >
-                                <Download className="w-3 h-3" />
-                                Descargar
+                                <Download className="w-3.5 h-3.5" />
+                                Descargar Archivo .STL
                               </a>
                             </div>
                           </div>
@@ -574,14 +561,7 @@ export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: A
         </div>
       )}
 
-      {/* MODAL: VISOR 3D STL */}
-      {viewingStl && (
-        <StlViewerModal
-          downloadUrl={viewingStl.url}
-          fileName={viewingStl.name}
-          onClose={() => setViewingStl(null)}
-        />
-      )}
+
     </div>
   );
 }

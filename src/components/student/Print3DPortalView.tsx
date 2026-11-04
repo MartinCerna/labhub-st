@@ -44,7 +44,6 @@ import {
 import { parseStlBuffer, ParsedStlGeometry, validateStlFileName } from '@/lib/stl-parser';
 import { useToast } from '@/components/shared/ToastProvider';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { StlViewerModal } from '@/components/shared/StlViewerModal';
 
 interface StlLocalFile {
   file: File;
