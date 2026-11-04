@@ -6,14 +6,14 @@
       "shortName": "Automatización",
       "code": "LAB-AUT",
       "location": "Pabellón B - Piso 2 (Aula B-210)",
-      "description": "Estaciones PLC Siemens S7-1200/1500, tableros neumáticos/electroneumáticos Festo, variadores de frecuencia y redes industriales SCADA.",
+      "description": "Controladores PLC Schneider Twido y Zelio, tableros de control industrial, contactores, variadores de frecuencia y componentes neumáticos.",
       "maxSimultaneousGroups": 4,
       "accentColor": "#f59e0b",
       "equipmentHighlights": [
-        "PLC Siemens S7",
-        "Módulos Festo",
-        "HMI & SCADA",
-        "Sensores Industriales"
+        "PLC Schneider Twido/Zelio",
+        "Variadores de Velocidad",
+        "Contactores y Disyuntores",
+        "Pistones Neumáticos"
       ]
     },
     {
@@ -22,14 +22,14 @@
       "shortName": "Electrónica",
       "code": "LAB-ELE",
       "location": "Pabellón B - Piso 2 (Aula B-209)",
-      "description": "Bancos instrumentados con osciloscopios digitales, fuentes DC duales, generadores de funciones, estaciones de soldadura SMD y sistemas embebidos.",
+      "description": "Bancos de trabajo con kits de entrenamiento en microcontroladores Microchip, tarjetas FPGA Terasic, sistemas embebidos y estaciones de soldadura.",
       "maxSimultaneousGroups": 6,
       "accentColor": "#0ea5e9",
       "equipmentHighlights": [
-        "Osciloscopios Digitales",
-        "Fuentes Reguladas Duales",
-        "Generadores RF",
-        "Estaciones SMD"
+        "Kits Microcontroladores PIC",
+        "FPGA DE0-CV Terasic",
+        "Arduino & Raspberry Pi",
+        "Estaciones de Soldadura"
       ]
     },
     {
@@ -38,14 +38,14 @@
       "shortName": "Mecatrónica",
       "code": "LAB-MEC",
       "location": "Pabellón A - Piso 2 (Aula A-207)",
-      "description": "Celdas robóticas colaborativas, manufactura aditiva/CNC, prototipado mecatrónico integral, actuadores servocontrolados y visión artificial.",
+      "description": "Prototipado mecatrónico integral, kits de robótica móvil Arduino 4WD y kits de microcontroladores Microchip CNANO.",
       "maxSimultaneousGroups": 4,
       "accentColor": "#10b981",
       "equipmentHighlights": [
-        "Brazos Robóticos",
-        "Impresoras 3D & CNC",
-        "Sistemas de Visión",
-        "Control de Movimiento"
+        "Kits Robótica LAFVIN 4WD",
+        "Kits Microchip CNANO",
+        "Prototipado Mecatrónico",
+        "Sistemas Embebidos"
       ]
     }
   ],
@@ -1539,18 +1539,13 @@
       "items": [
         {
           "quantity": 1,
-          "equipmentName": "Osciloscopio Digital Rigol 100MHz 2 Canales",
-          "upnCode": "UPN-PAT-OSC-042"
+          "equipmentName": "Kit de Entrenamiento en Microcontroladores (Microchip AC164162)",
+          "upnCode": "4-001358"
         },
         {
           "quantity": 1,
-          "equipmentName": "Generador de Funciones Arbitrarias GW Instek",
-          "upnCode": "UPN-PAT-GEN-019"
-        },
-        {
-          "quantity": 2,
-          "equipmentName": "Sondas Pasivas 10X con Pinza BNC",
-          "upnCode": "UPN-ACC-SND-088"
+          "equipmentName": "Tarjeta de Desarrollo FPGA DE0-CV (Terasic)",
+          "upnCode": "4-000560"
         }
       ],
       "groupMembers": [

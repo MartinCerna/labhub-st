@@ -98,7 +98,7 @@ export function AdminPrints3DTab({ dashboard, onRefresh }: AdminPrints3DTabProps
       );
       showToast(
         targetStatus === 'OBSERVADO'
-          ? `Solicitud ${editingRequest.code} marcada como OBSERVADA. Se activó el plazo de 72 horas para subsanación.`
+          ? `Solicitud ${editingRequest.code} marcada como OBSERVADA. Se activó el plazo de 48 horas para subsanación.`
           : `Estado de la solicitud ${editingRequest.code} actualizado a ${targetStatus}.`,
         'success'
       );
@@ -112,12 +112,12 @@ export function AdminPrints3DTab({ dashboard, onRefresh }: AdminPrints3DTabProps
     }
   };
 
-  // Cálculo de tiempo restante de observación (72 horas)
+  // Cálculo de tiempo restante de observación (48 horas)
   const getObservationTimeLeft = (expiresAtStr?: string) => {
     if (!expiresAtStr) return null;
     const diffMs = new Date(expiresAtStr).getTime() - Date.now();
     if (diffMs <= 0) {
-      return { expired: true, text: 'Plazo de 72h vencido' };
+      return { expired: true, text: 'Plazo de 48h vencido' };
     }
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -246,7 +246,7 @@ export function AdminPrints3DTab({ dashboard, onRefresh }: AdminPrints3DTabProps
                         })}
                       </span>
 
-                      {/* Contador de 72h si está OBSERVADO */}
+                      {/* Contador de 48h si está OBSERVADO */}
                       {timeLeft && (
                         <span
                           className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
@@ -256,7 +256,7 @@ export function AdminPrints3DTab({ dashboard, onRefresh }: AdminPrints3DTabProps
                           }`}
                         >
                           <Clock className="w-3.5 h-3.5" />
-                          {timeLeft.text} (Plazo 72h)
+                          {timeLeft.text} (Plazo 48h)
                         </span>
                       )}
                     </div>
@@ -470,16 +470,16 @@ export function AdminPrints3DTab({ dashboard, onRefresh }: AdminPrints3DTabProps
                 </select>
               </div>
 
-              {/* Si es OBSERVADO, requerir comentario de observación y advertir sobre 72h */}
+              {/* Si es OBSERVADO, requerir comentario de observación y advertir sobre 48h */}
               {targetStatus === 'OBSERVADO' && (
                 <div className="space-y-2 animate-in fade-in">
                   <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200">
                     <p className="font-bold flex items-center gap-1.5">
                       <Clock className="w-4 h-4 text-amber-600" />
-                      Activación de Plazo de 72 Horas
+                      Activación de Plazo de 48 Horas
                     </p>
                     <p className="text-[11px] mt-1 leading-relaxed">
-                      Al marcar como <strong>OBSERVADO</strong>, el estudiante recibirá la notificación y se iniciará automáticamente una cuenta regresiva de <strong>72 horas</strong> para que suba los archivos .stl corregidos en el portal.
+                      Al marcar como <strong>OBSERVADO</strong>, el estudiante recibirá la notificación y se iniciará automáticamente una cuenta regresiva de <strong>48 horas</strong> para que suba los archivos .stl corregidos en el portal.
                     </p>
                   </div>
 

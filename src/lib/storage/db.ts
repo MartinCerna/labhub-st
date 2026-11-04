@@ -660,18 +660,13 @@ function buildInitialDatabase(): LabHubDatabase {
     items: [
       {
         quantity: 1,
-        equipmentName: 'Osciloscopio Digital Rigol 100MHz 2 Canales',
-        upnCode: 'UPN-PAT-OSC-042',
+        equipmentName: 'Kit de Entrenamiento en Microcontroladores (Microchip AC164162)',
+        upnCode: '4-001358',
       },
       {
         quantity: 1,
-        equipmentName: 'Generador de Funciones Arbitrarias GW Instek',
-        upnCode: 'UPN-PAT-GEN-019',
-      },
-      {
-        quantity: 2,
-        equipmentName: 'Sondas Pasivas 10X con Pinza BNC',
-        upnCode: 'UPN-ACC-SND-088',
+        equipmentName: 'Tarjeta de Desarrollo FPGA DE0-CV (Terasic)',
+        upnCode: '4-000560',
       },
     ],
     groupMembers: [
@@ -975,7 +970,25 @@ async function writeDatabaseRaw(db: LabHubDatabase): Promise<void> {
   const dbFile = getDatabaseFilePath();
   const tempPath = `${dbFile}.${Date.now()}.${Math.random().toString(36).substring(2)}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(db, null, 2), 'utf-8');
-  fs.renameSync(tempPath, dbFile);
+  try {
+    fs.renameSync(tempPath, dbFile);
+  } catch (err: any) {
+    if (err?.code === 'EPERM' || err?.code === 'EBUSY' || err?.code === 'EEXIST') {
+      try {
+        fs.copyFileSync(tempPath, dbFile);
+        fs.unlinkSync(tempPath);
+      } catch {
+        fs.writeFileSync(dbFile, JSON.stringify(db, null, 2), 'utf-8');
+        try {
+          fs.unlinkSync(tempPath);
+        } catch {
+          // Ignorar limpieza de temp
+        }
+      }
+    } else {
+      throw err;
+    }
+  }
 }
 
 // ============================================================================

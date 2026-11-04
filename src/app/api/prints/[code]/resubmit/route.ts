@@ -39,13 +39,13 @@ export async function POST(
       );
     }
 
-    // Validar plazo de 72 horas
+    // Validar plazo de 48 horas
     const now = new Date();
     if (target.observationExpiresAt && now.getTime() > new Date(target.observationExpiresAt).getTime()) {
       return NextResponse.json(
         {
           error:
-            'El plazo máximo de 72 horas para subsanar las observaciones ha expirado. Comuníquese directamente con el coordinador de laboratorios.',
+            'El plazo máximo de 48 horas para subsanar las observaciones ha expirado. Comuníquese directamente con el coordinador de laboratorios.',
         },
         { status: 400 }
       );
@@ -123,7 +123,7 @@ export async function POST(
         status: 'EN REVISION',
         timestamp: now.toISOString(),
         actor: printItem.studentFullName,
-        comment: `Subsanación de archivos enviada (Versión ${nextVersion}) dentro de la ventana de 72 horas.`,
+        comment: `Subsanación de archivos enviada (Versión ${nextVersion}) dentro de la ventana de 48 horas.`,
       });
 
       return printItem;

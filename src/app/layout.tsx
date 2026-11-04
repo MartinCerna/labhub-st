@@ -4,14 +4,14 @@ import { ToastProvider } from '@/components/shared/ToastProvider';
 import { Navbar } from '@/components/shared/Navbar';
 
 export const metadata: Metadata = {
-  title: 'LabHub ST | Plataforma de Laboratorios de Ingeniería',
+  title: 'LabHub ST | Plataforma de Laboratorios de Ingeniería UPN',
   description:
-    'Plataforma de gestión de reservas, asesorías, préstamo de equipos e impresión 3D para los Laboratorios de Automatización, Electrónica y Mecatrónica. Desarrollado por Martin Cerna.',
-  authors: [{ name: 'Martin Cerna', url: 'mailto:martin.cernaa@gmail.com' }],
-  creator: 'Martin Cerna',
-  publisher: 'Martin Cerna',
+    'Plataforma de gestión de reservas, asesorías, préstamo de equipos e impresión 3D para los Laboratorios de Automatización, Electrónica y Mecatrónica — UPN Campus Trujillo (San Isidro). Desarrollado por Martín Aarón León Cerna.',
+  authors: [{ name: 'Martín Aarón León Cerna', url: 'mailto:martin.cernaa@gmail.com' }],
+  creator: 'Martín Aarón León Cerna',
+  publisher: 'Martín Aarón León Cerna',
   other: {
-    copyright: '© 2026 Martin Cerna. Todos los derechos reservados.',
+    copyright: '© 2026 Martín Aarón León Cerna. Todos los derechos reservados.',
   },
 };
 
@@ -29,19 +29,24 @@ export default function RootLayout({
           <Navbar />
           <main className="flex-1">{children}</main>
 
-          {/* Footer de Propiedad Intelectual y Copyright */}
-          <footer className="border-t border-slate-200 bg-white py-5 text-xs text-slate-500 no-print">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
-              <div>
-                <span className="font-semibold text-slate-800">
-                  © {currentYear} Martin Cerna.
-                </span>{' '}
-                <span>
-                  Todos los derechos reservados. Prohibida su reproducción, distribución o modificación sin autorización expresa del autor.
-                </span>
+          {/* Footer Institucional de Propiedad Intelectual y Copyright */}
+          <footer className="border-t-2 border-[#fdba30] bg-[#212529] py-6 text-xs text-slate-400 no-print">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left">
+              <div className="space-y-1">
+                <div>
+                  <span className="font-bold text-white">
+                    © {currentYear} Martín Aarón León Cerna.
+                  </span>{' '}
+                  <span className="text-slate-300">
+                    Todos los derechos reservados. Prohibida su reproducción, distribución o modificación sin autorización expresa del autor.
+                  </span>
+                </div>
+                <div className="text-[11px] font-semibold text-[#fdba30]">
+                  Universidad Privada del Norte (UPN) • Campus Trujillo - San Isidro • Laboratorios de Ingeniería (Automatización, Electrónica y Mecatrónica)
+                </div>
               </div>
               <div className="text-[11px] font-medium text-slate-400 shrink-0">
-                Arquitectura y Desarrollo por <span className="text-slate-700 font-semibold">Martin Cerna</span>
+                Arquitectura y Desarrollo por <span className="text-white font-bold">Martín Aarón León Cerna</span>
               </div>
             </div>
           </footer>
