@@ -136,37 +136,44 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const adminUser = requireAdminSession(request);
+    const session = requireAdminSession(request);
     const body = (await request.json()) as {
       id: string;
       status: EquipmentLoanStatus;
       adminNotes?: string;
     };
 
-    if (!body.id || !body.status) {
+    if (!body.id || !['PENDIENTE', 'EN_USO', 'DEVUELTO', 'ENTREGADO'].includes(body.status)) {
       return NextResponse.json(
-        { error: 'Los parámetros "id" y "status" son obligatorios.' },
+        {
+          error:
+            'Los parámetros "id" y un "status" válido (PENDIENTE, EN_USO, DEVUELTO, ENTREGADO) son obligatorios.',
+        },
         { status: 400 }
       );
     }
 
     const updatedLoan = await dbRepository.updateDatabase(async (db) => {
-      const loan = db.loans.find((l) => l.id === body.id);
-      if (!loan) {
+      const target = db.loans.find((l) => l.id === body.id);
+      if (!target) {
         throw new Error('Registro de préstamo no encontrado.');
       }
 
-      loan.status = body.status;
+      target.status = body.status;
+
       if (body.adminNotes !== undefined) {
-        loan.adminNotes = body.adminNotes.trim();
+        target.adminNotes = body.adminNotes.trim();
       }
 
-      if (body.status === 'ENTREGADO') {
-        loan.deliveredAt = new Date().toISOString();
-        loan.deliveredByAdmin = adminUser.fullName;
+      if (body.status === 'EN_USO') {
+        target.handedOutAt = new Date().toISOString();
+        target.handedOutByAdmin = `${session.fullName} (${session.role})`;
+      } else if (body.status === 'DEVUELTO' || body.status === 'ENTREGADO') {
+        target.deliveredAt = new Date().toISOString();
+        target.deliveredByAdmin = `${session.fullName} (${session.role})`;
       }
 
-      return loan;
+      return target;
     });
 
     // Sincronizar actualización

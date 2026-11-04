@@ -51,7 +51,13 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
 
   // Filtrado de préstamos
   const filteredLoans = loans.filter((loan) => {
-    if (selectedStatus !== 'ALL' && loan.status !== selectedStatus) {
+    if (selectedStatus === 'PENDIENTE' && loan.status !== 'PENDIENTE') {
+      return false;
+    }
+    if (selectedStatus === 'EN_USO' && loan.status !== 'EN_USO') {
+      return false;
+    }
+    if (selectedStatus === 'DEVUELTO' && loan.status !== 'DEVUELTO' && loan.status !== 'ENTREGADO') {
       return false;
     }
     if (selectedLabId !== 'ALL' && loan.labId !== selectedLabId) {
@@ -74,16 +80,40 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
     return true;
   });
 
-  // Marcar como ENTREGADO
+  // M10: Entregar al alumno (pasa a EN_USO)
+  const handleHandOutToStudent = async (loan: EquipmentLoan) => {
+    try {
+      setUpdatingId(loan.id);
+      await apiClient.updateLoanStatus(
+        loan.id,
+        'EN_USO',
+        'Materiales y equipos entregados al estudiante responsable para su sesión de laboratorio.'
+      );
+      showToast(`Préstamo ${loan.code}: Marcado como EN PRÉSTAMO (con el alumno).`, 'success');
+      if (activeLoanModal?.id === loan.id) {
+        setActiveLoanModal((prev) =>
+          prev ? { ...prev, status: 'EN_USO', handedOutAt: new Date().toISOString() } : null
+        );
+      }
+      await onRefresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al entregar los equipos.';
+      showToast(msg, 'error');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // M10: Registrar devolución al laboratorio (pasa a DEVUELTO)
   const handleMarkAsDelivered = async (loan: EquipmentLoan) => {
     try {
       setUpdatingId(loan.id);
       await apiClient.updateLoanStatus(
         loan.id,
-        'ENTREGADO',
-        deliveryNotes.trim() || 'Equipos devueltos y validados por el personal del laboratorio.'
+        'DEVUELTO',
+        deliveryNotes.trim() || 'Equipos devueltos y validados con total conformidad por el personal del laboratorio.'
       );
-      showToast(`Préstamo ${loan.code} marcado como ENTREGADO exitosamente.`, 'success');
+      showToast(`Préstamo ${loan.code}: Marcado como DEVUELTO AL LABORATORIO.`, 'success');
       setDeliveryNotes('');
       if (activeLoanModal?.id === loan.id) {
         setActiveLoanModal(null);
@@ -132,18 +162,29 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
-              Pendientes ({loans.filter((l) => l.status === 'PENDIENTE').length})
+              Pendientes de Entrega ({loans.filter((l) => l.status === 'PENDIENTE').length})
             </button>
             <button
               type="button"
-              onClick={() => setSelectedStatus('ENTREGADO')}
+              onClick={() => setSelectedStatus('EN_USO')}
               className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-                selectedStatus === 'ENTREGADO'
-                  ? 'bg-amber-600 text-white shadow-xs'
+                selectedStatus === 'EN_USO'
+                  ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
-              Entregados ({loans.filter((l) => l.status === 'ENTREGADO').length})
+              En Préstamo ({loans.filter((l) => l.status === 'EN_USO').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedStatus('DEVUELTO')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                selectedStatus === 'DEVUELTO'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              Devueltos ({loans.filter((l) => l.status === 'DEVUELTO' || l.status === 'ENTREGADO').length})
             </button>
           </div>
 
@@ -225,7 +266,22 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
                       <span className="font-mono text-xs font-bold px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700">
                         {loan.code}
                       </span>
-                      <StatusBadge status={loan.status} size="sm" />
+                      {loan.status === 'PENDIENTE' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          PENDIENTE DE ENTREGA
+                        </span>
+                      ) : loan.status === 'EN_USO' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-900 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
+                          <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                          EN PRÉSTAMO (CON EL ALUMNO)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                          DEVUELTO AL LABORATORIO
+                        </span>
+                      )}
                       <span className="text-xs text-slate-500 flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
                         {new Date(loan.createdAt).toLocaleDateString('es-PE', {
@@ -243,7 +299,7 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
                     </div>
 
                     {/* Botones de acción rápida */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
                       <button
                         type="button"
                         onClick={() => setActiveLoanModal(loan)}
@@ -254,14 +310,39 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
                       </button>
 
                       {loan.status === 'PENDIENTE' && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={isUpdating}
+                            onClick={() => handleHandOutToStudent(loan)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <UserCheck className="w-3.5 h-3.5" />
+                            Entregar al Alumno (En Préstamo)
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isUpdating}
+                            onClick={() => handleMarkAsDelivered(loan)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Marcar Devuelto
+                          </button>
+                        </>
+                      )}
+
+                      {loan.status === 'EN_USO' && (
                         <button
                           type="button"
                           disabled={isUpdating}
-                          onClick={() => handleMarkAsDelivered(loan)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                          onClick={() => {
+                            setActiveLoanModal(loan);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          Marcar como ENTREGADO
+                          Registrar Devolución al Laboratorio
                         </button>
                       )}
                     </div>
@@ -332,12 +413,31 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
                     </div>
                   </div>
 
-                  {/* Estado de devolución si ya fue entregado */}
-                  {loan.status === 'ENTREGADO' && loan.deliveredAt && (
+                  {/* Estado de entrega al alumno en uso */}
+                  {loan.status === 'EN_USO' && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-blue-700 dark:text-blue-300 bg-blue-50/60 dark:bg-blue-950/20 px-3 py-1.5 rounded-xl">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-blue-600" />
+                        En préstamo con el alumno
+                        {loan.handedOutAt && (
+                          <> • Entregado el {new Date(loan.handedOutAt).toLocaleString('es-PE')}</>
+                        )}
+                        {loan.handedOutByAdmin && (
+                          <> por: <strong>{loan.handedOutByAdmin}</strong></>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-blue-500 font-semibold">
+                        Pendiente de devolución al término de la clase
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Estado de devolución si ya fue entregado / devuelto */}
+                  {(loan.status === 'ENTREGADO' || loan.status === 'DEVUELTO') && (
                     <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 px-3 py-1.5 rounded-xl">
                       <span className="flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Devuelto el {new Date(loan.deliveredAt).toLocaleString('es-PE')} • Recepcionado por: {loan.deliveredByAdmin || 'Personal de Lab'}
+                        Devuelto al laboratorio {loan.deliveredAt ? `el ${new Date(loan.deliveredAt).toLocaleString('es-PE')}` : ''} • Recepcionado por: {loan.deliveredByAdmin || 'Personal de Lab'}
                       </span>
                       {loan.adminNotes && (
                         <span className="text-slate-500 italic truncate max-w-xs">
@@ -442,12 +542,18 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
                     <strong>Estado Actual:</strong>{' '}
                     <span
                       className={`font-bold ${
-                        activeLoanModal.status === 'ENTREGADO'
+                        activeLoanModal.status === 'DEVUELTO' || activeLoanModal.status === 'ENTREGADO'
                           ? 'text-emerald-700'
+                          : activeLoanModal.status === 'EN_USO'
+                          ? 'text-blue-700'
                           : 'text-amber-700'
                       }`}
                     >
-                      {activeLoanModal.status}
+                      {activeLoanModal.status === 'EN_USO'
+                        ? 'EN PRÉSTAMO (CON EL ALUMNO)'
+                        : activeLoanModal.status === 'DEVUELTO' || activeLoanModal.status === 'ENTREGADO'
+                        ? 'DEVUELTO AL LABORATORIO'
+                        : 'PENDIENTE DE ENTREGA'}
                     </span>
                   </p>
                 </div>
@@ -557,14 +663,14 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
               </div>
 
               {/* Recepción y Control Administrativo */}
-              {activeLoanModal.status === 'ENTREGADO' && (
+              {(activeLoanModal.status === 'ENTREGADO' || activeLoanModal.status === 'DEVUELTO') && (
                 <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-900">
                   <p className="font-bold uppercase flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     Recepción y Conformidad de Laboratorio
                   </p>
                   <p className="mt-1">
-                    Devolución recepcionada el {activeLoanModal.deliveredAt} por:{' '}
+                    Devolución recepcionada el {activeLoanModal.deliveredAt || activeLoanModal.createdAt} por:{' '}
                     <strong>{activeLoanModal.deliveredByAdmin || 'Personal de Laboratorio'}</strong>
                   </p>
                   {activeLoanModal.adminNotes && (
@@ -576,11 +682,39 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
               )}
             </div>
 
-            {/* Acción de Recepción dentro del Modal (solo si sigue pendiente) */}
+            {/* Acciones de Control dentro del Modal */}
             {activeLoanModal.status === 'PENDIENTE' && (
+              <div className="mt-6 pt-5 border-t border-slate-200 print:hidden flex flex-col sm:flex-row items-center justify-between gap-3">
+                <span className="text-xs text-slate-500">
+                  Préstamo registrado. Puedes entregar los equipos al estudiante o registrar su devolución:
+                </span>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    disabled={updatingId === activeLoanModal.id}
+                    onClick={() => handleHandOutToStudent(activeLoanModal)}
+                    className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>Entregar al Alumno (En Préstamo)</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={updatingId === activeLoanModal.id}
+                    onClick={() => handleMarkAsDelivered(activeLoanModal)}
+                    className="flex-1 sm:flex-none px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Marcar Devuelto</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeLoanModal.status === 'EN_USO' && (
               <div className="mt-6 pt-5 border-t border-slate-200 print:hidden space-y-3">
                 <label className="block text-xs font-bold uppercase text-slate-700">
-                  Nota Administrativa de Devolución (Opcional):
+                  Nota Administrativa de Devolución de Equipos:
                 </label>
                 <div className="flex gap-3">
                   <input
@@ -594,10 +728,10 @@ export function AdminLoansTab({ dashboard, onRefresh }: AdminLoansTabProps) {
                     type="button"
                     disabled={updatingId === activeLoanModal.id}
                     onClick={() => handleMarkAsDelivered(activeLoanModal)}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    {updatingId === activeLoanModal.id ? 'Guardando...' : 'Confirmar Devolución'}
+                    {updatingId === activeLoanModal.id ? 'Guardando...' : 'Confirmar Devolución al Laboratorio'}
                   </button>
                 </div>
               </div>

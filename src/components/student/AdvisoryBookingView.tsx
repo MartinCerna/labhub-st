@@ -21,6 +21,9 @@ import {
   X,
   RefreshCw,
   Info,
+  Search,
+  BookmarkCheck,
+  Filter,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import {
@@ -34,7 +37,18 @@ import {
   AdvisoryRequest,
   LabReservation,
 } from '@/types/labhub';
-import { TIME_BLOCKS, TIME_BLOCK_MAP, LAB_MAP } from '@/constants/schedule';
+import {
+  TIME_BLOCKS,
+  TIME_BLOCK_MAP,
+  LAB_MAP,
+  UPN_LAB_COURSES,
+} from '@/constants/schedule';
+import {
+  loadSavedStudentProfile,
+  saveStudentProfile,
+  lookupStudentByUpnCode,
+  clearSavedStudentProfile,
+} from '@/lib/student-profile-storage';
 import { useToast } from '@/components/shared/ToastProvider';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 
@@ -45,6 +59,10 @@ export function AdvisoryBookingView() {
   const [advisors, setAdvisors] = useState<AdvisorProfile[]>([]);
   const [selectedAdvisorId, setSelectedAdvisorId] = useState<string>('adv-1');
 
+  // M11: Filtro rápido por especialidad/tema y buscador
+  const [advisorSearchQuery, setAdvisorSearchQuery] = useState<string>('');
+  const [selectedTopicFilter, setSelectedTopicFilter] = useState<string>('Todos');
+
   // Navegación semanal (0 o 1)
   const [weekOffset, setWeekOffset] = useState<0 | 1>(0);
 
@@ -52,6 +70,9 @@ export function AdvisoryBookingView() {
   const [scheduleData, setScheduleData] = useState<AdvisorWeeklyScheduleResponse | null>(null);
   const [loadingSchedule, setLoadingSchedule] = useState<boolean>(true);
   const [refreshKey, setRefreshKey] = useState<number>(0);
+
+  // M16: Vista móvil por día (0 = Lunes, 5 = Sábado)
+  const [mobileDayIdx, setMobileDayIdx] = useState<number>(0);
 
   // Selección de bloques para asesoría
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -61,13 +82,22 @@ export function AdvisoryBookingView() {
 
   // Datos del formulario de asesoría
   const [projectName, setProjectName] = useState<string>('');
-  const [course, setCourse] = useState<string>('');
+
+  // M11: Selector desplegable de Cursos con UPN_LAB_COURSES + manual
+  const [selectedCourse, setSelectedCourse] = useState<string>(UPN_LAB_COURSES[0] || '');
+  const [isCustomCourse, setIsCustomCourse] = useState<boolean>(false);
+  const [customCourse, setCustomCourse] = useState<string>('');
+
   const [nrc, setNrc] = useState<string>('');
   const [topicNotes, setTopicNotes] = useState<string>('');
-  // De base 1 estudiante, y botón "+ Añadir estudiante"
+
+  // Estudiantes: De base 1 estudiante, y opción de añadir más (M18)
   const [students, setStudents] = useState<StudentParticipant[]>([
     { fullName: '', upnCode: '' },
   ]);
+
+  // Recordatorio de datos en navegador (M18)
+  const [hasRememberedProfile, setHasRememberedProfile] = useState<boolean>(false);
 
   // Estado de envío y comprobante
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -92,6 +122,39 @@ export function AdvisoryBookingView() {
         console.warn('Error al cargar catálogo de asesores:', err);
       });
   }, [selectedAdvisorId]);
+
+  // M18: Cargar perfil recordado al montar para prellenar estudiante #1, curso y NRC
+  useEffect(() => {
+    const saved = loadSavedStudentProfile();
+    if (saved && (saved.fullName || saved.upnCode)) {
+      setStudents([
+        {
+          fullName: saved.fullName || '',
+          upnCode: saved.upnCode || '',
+        },
+      ]);
+      if (saved.course) {
+        if (UPN_LAB_COURSES.includes(saved.course)) {
+          setSelectedCourse(saved.course);
+          setIsCustomCourse(false);
+        } else {
+          setSelectedCourse('__OTHER__');
+          setIsCustomCourse(true);
+          setCustomCourse(saved.course);
+        }
+      }
+      if (saved.nrc) {
+        setNrc(saved.nrc);
+      }
+      setHasRememberedProfile(true);
+    }
+  }, []);
+
+  const handleForgetProfile = () => {
+    clearSavedStudentProfile();
+    setHasRememberedProfile(false);
+    showToast('Datos locales del estudiante olvidados en este navegador.', 'info');
+  };
 
   // Carga del horario semanal del asesor seleccionado
   const fetchAdvisorSchedule = useCallback(() => {
@@ -126,6 +189,57 @@ export function AdvisoryBookingView() {
       advisors[0]
     );
   }, [scheduleData, advisors, selectedAdvisorId]);
+
+  // M11: Píldoras de temas comunes
+  const availableTopics = useMemo(() => {
+    const topicsSet = new Set<string>();
+    advisors.forEach((adv) => {
+      if (adv.specialty) {
+        // Extraer términos significativos si vienen juntos
+        adv.specialty.split(/[,/•y]/).forEach((part) => {
+          const t = part.trim();
+          if (t.length > 3) topicsSet.add(t);
+        });
+      }
+      if (adv.advisoryTopics) {
+        adv.advisoryTopics.forEach((t) => topicsSet.add(t.trim()));
+      }
+    });
+
+    // Píldoras curadas y más representativas
+    const defaults = ['Todos', 'Automatización', 'Electrónica', 'Mecatrónica', 'PLC', 'Robótica', 'Impresión 3D'];
+    const dynamicTopics = Array.from(topicsSet).filter((t) => !defaults.includes(t)).slice(0, 3);
+    return [...defaults, ...dynamicTopics];
+  }, [advisors]);
+
+  // M11: Filtrado de Asesores por texto y píldora de tema
+  const filteredAdvisors = useMemo(() => {
+    return advisors.filter((adv) => {
+      // Filtro por píldora
+      if (selectedTopicFilter !== 'Todos') {
+        const filterLower = selectedTopicFilter.toLowerCase();
+        const matchesTopic =
+          adv.specialty.toLowerCase().includes(filterLower) ||
+          adv.career?.toLowerCase().includes(filterLower) ||
+          adv.advisoryTopics?.some((t) => t.toLowerCase().includes(filterLower));
+        if (!matchesTopic) return false;
+      }
+
+      // Filtro por texto de búsqueda libre
+      if (advisorSearchQuery.trim()) {
+        const q = advisorSearchQuery.trim().toLowerCase();
+        const matchesQuery =
+          adv.fullName.toLowerCase().includes(q) ||
+          adv.roleTitle.toLowerCase().includes(q) ||
+          adv.specialty.toLowerCase().includes(q) ||
+          adv.career?.toLowerCase().includes(q) ||
+          adv.advisoryTopics?.some((t) => t.toLowerCase().includes(q));
+        if (!matchesQuery) return false;
+      }
+
+      return true;
+    });
+  }, [advisors, selectedTopicFilter, advisorSearchQuery]);
 
   // Mapa rápido de slots del asesor
   const slotsMap = useMemo(() => {
@@ -178,15 +292,45 @@ export function AdvisoryBookingView() {
     });
   };
 
-  // Manejo de la lista dinámica de estudiantes
+  // M18: Manejo de la lista dinámica de estudiantes con autocompletado por Código UPN
   const handleAddStudent = () => {
     setStudents((prev) => [...prev, { fullName: '', upnCode: '' }]);
   };
 
-  const handleUpdateStudent = (index: number, field: keyof StudentParticipant, value: string) => {
+  const handleUpdateStudent = (
+    index: number,
+    field: keyof StudentParticipant,
+    value: string
+  ) => {
     setStudents((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
+      const nextVal = field === 'upnCode' ? value.toUpperCase() : value;
+      copy[index] = { ...copy[index], [field]: nextVal };
+
+      // Si se digita un código UPN, buscar en el directorio local
+      if (field === 'upnCode' && nextVal.length >= 6) {
+        const match = lookupStudentByUpnCode(nextVal);
+        if (match && match.fullName && !copy[index].fullName) {
+          copy[index].fullName = match.fullName;
+        }
+        // Si es el estudiante principal y curso/nrc están vacíos, autocompletar
+        if (index === 0 && match) {
+          if (!nrc && match.nrc) {
+            setNrc(match.nrc);
+          }
+          if (match.course && (!selectedCourse || isCustomCourse)) {
+            if (UPN_LAB_COURSES.includes(match.course)) {
+              setSelectedCourse(match.course);
+              setIsCustomCourse(false);
+            } else {
+              setSelectedCourse('__OTHER__');
+              setIsCustomCourse(true);
+              setCustomCourse(match.course);
+            }
+          }
+        }
+      }
+
       return copy;
     });
   };
@@ -199,6 +343,8 @@ export function AdvisoryBookingView() {
     setStudents((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const finalCourse = isCustomCourse ? customCourse.trim() : selectedCourse.trim();
+
   // Envío de asesoría
   const handleSubmitAdvisory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,7 +354,7 @@ export function AdvisoryBookingView() {
       return;
     }
 
-    if (!projectName.trim() || !course.trim() || !nrc.trim()) {
+    if (!projectName.trim() || !finalCourse || !nrc.trim()) {
       showToast('Por favor, completa el nombre del proyecto, curso y NRC.', 'warning');
       return;
     }
@@ -226,7 +372,7 @@ export function AdvisoryBookingView() {
       date: selectedDate,
       blockIds: selectedBlockIds,
       projectName: projectName.trim(),
-      course: course.trim(),
+      course: finalCourse,
       nrc: nrc.trim(),
       topicNotes: topicNotes.trim() || undefined,
       students: students.map((s) => ({
@@ -240,6 +386,26 @@ export function AdvisoryBookingView() {
       const res = await apiClient.createAdvisory(payload);
       setCreatedAdvisory({ advisory: res.advisory, reservation: res.reservation });
       showToast(`¡Asesoría ${res.advisory.code} agendada con éxito!`, 'success');
+
+      // M18: Guardar en localStorage para futuras visitas
+      if (students[0]) {
+        saveStudentProfile({
+          fullName: students[0].fullName.trim(),
+          upnCode: students[0].upnCode.trim().toUpperCase(),
+          course: finalCourse,
+          nrc: nrc.trim(),
+        });
+      }
+      students.slice(1).forEach((s) => {
+        if (s.upnCode && s.fullName) {
+          saveStudentProfile({
+            fullName: s.fullName.trim(),
+            upnCode: s.upnCode.trim().toUpperCase(),
+          });
+        }
+      });
+      setHasRememberedProfile(true);
+
       // Limpiar selección
       setSelectedBlockIds([]);
       setSelectedDate(null);
@@ -258,7 +424,7 @@ export function AdvisoryBookingView() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* ===================================================================== */}
-      {/* ENCABEZADO Y SELECTOR VISUAL DE LOS 4 ASESORES                        */}
+      {/* ENCABEZADO Y SELECTOR VISUAL DE LOS ASESORES CON FILTROS (M11)        */}
       {/* ===================================================================== */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
         <div>
@@ -270,102 +436,161 @@ export function AdvisoryBookingView() {
             Solicitar Asesoría con Asistente o Docente
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-3xl">
-            Selecciona al asesor técnico especializado. La asesoría reservará automáticamente 1 cupo en el laboratorio asignado y enviará la invitación a su Google Calendar.
+            Selecciona al asesor técnico especializado. La asesoría reservará automáticamente 1 cupo
+            en el laboratorio asignado y enviará la invitación a su Google Calendar.
           </p>
         </div>
 
-        {/* Tarjetas de los Asesores */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-          {advisors.map((adv) => {
-            const isSelected = selectedAdvisorId === adv.id;
-            return (
-              <button
-                key={adv.id}
-                type="button"
-                onClick={() => {
-                  setSelectedAdvisorId(adv.id);
-                  setSelectedBlockIds([]);
-                  setSelectedDate(null);
-                  setSelectedSlotLabId(null);
-                  setIsFormOpen(false);
-                }}
-                className={`text-left p-4 sm:p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                  isSelected
-                    ? 'border-sky-500 bg-sky-50/50 shadow-sm ring-2 ring-sky-500/20'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
-                }`}
-              >
-                <div className="space-y-3">
-                  {/* Fila superior: Avatar + Estado Activo */}
-                  <div className="flex items-center justify-between">
-                    <div
-                      className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm text-white shadow-xs"
-                      style={{ backgroundColor: adv.badgeColor || '#0284c7' }}
-                    >
-                      {adv.avatarInitials}
-                    </div>
-                    {isSelected && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500 text-white">
-                        Activo
-                      </span>
-                    )}
-                  </div>
+        {/* M11: Buscador y Píldoras de Filtro Rápido por Especialidad/Tema */}
+        <div className="space-y-3 pt-1 border-t border-slate-100">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Buscador por texto */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={advisorSearchQuery}
+                onChange={(e) => setAdvisorSearchQuery(e.target.value)}
+                placeholder="Buscar asesor por nombre, especialidad o tema..."
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-3.5 py-2 text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              />
+              {advisorSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setAdvisorSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
-                  {/* Nombre y Cargo */}
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                      {adv.fullName}
-                    </h3>
-                    <span className="text-[11px] font-semibold text-slate-500 block mt-0.5">
-                      {adv.roleTitle}
-                    </span>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <Filter className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+              <span>Filtro rápido:</span>
+            </div>
+          </div>
 
-                    {/* Insignia de Carrera Profesional */}
-                    {adv.career && (
-                      <div className="inline-flex items-center gap-1.5 mt-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
-                        <GraduationCap className="w-3 h-3 text-amber-600 shrink-0" />
-                        <span>{adv.career}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Especialidad Principal */}
-                  <div className="text-xs text-slate-600">
-                    <p className="line-clamp-2">
-                      <strong className="text-slate-700 font-semibold">Especialidad: </strong>
-                      {adv.specialty}
-                    </p>
-                  </div>
-
-                  {/* Temas de Asesoría */}
-                  {adv.advisoryTopics && adv.advisoryTopics.length > 0 && (
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                        Temas de asesoría:
-                      </span>
-                      <div className="flex flex-wrap gap-1">
-                        {adv.advisoryTopics.map((topic, i) => (
-                          <span
-                            key={i}
-                            className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200/60"
-                          >
-                            {topic}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer: Correo Electrónico */}
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-1.5 text-[11px] text-slate-500 truncate">
-                  <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                  <span className="truncate font-mono">{adv.email}</span>
-                </div>
-              </button>
-            );
-          })}
+          {/* Píldoras de especialidades / temas */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            {availableTopics.map((topic) => {
+              const isSelected = selectedTopicFilter === topic;
+              return (
+                <button
+                  key={topic}
+                  type="button"
+                  onClick={() => setSelectedTopicFilter(topic)}
+                  className={`px-3 py-1.5 rounded-full font-semibold transition-all shrink-0 cursor-pointer text-xs ${
+                    isSelected
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {topic}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Tarjetas de los Asesores Filtrados */}
+        {filteredAdvisors.length === 0 ? (
+          <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-xs">
+            No se encontraron asesores que coincidan con los filtros aplicados.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+            {filteredAdvisors.map((adv) => {
+              const isSelected = selectedAdvisorId === adv.id;
+              return (
+                <button
+                  key={adv.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedAdvisorId(adv.id);
+                    setSelectedBlockIds([]);
+                    setSelectedDate(null);
+                    setSelectedSlotLabId(null);
+                    setIsFormOpen(false);
+                  }}
+                  className={`text-left p-4 sm:p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                    isSelected
+                      ? 'border-sky-500 bg-sky-50/50 shadow-sm ring-2 ring-sky-500/20'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    {/* Fila superior: Avatar + Estado Activo */}
+                    <div className="flex items-center justify-between">
+                      <div
+                        className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm text-white shadow-xs"
+                        style={{ backgroundColor: adv.badgeColor || '#0284c7' }}
+                      >
+                        {adv.avatarInitials}
+                      </div>
+                      {isSelected && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500 text-white">
+                          Seleccionado
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Nombre y Cargo */}
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                        {adv.fullName}
+                      </h3>
+                      <span className="text-[11px] font-semibold text-slate-500 block mt-0.5">
+                        {adv.roleTitle}
+                      </span>
+
+                      {/* Insignia de Carrera Profesional */}
+                      {adv.career && (
+                        <div className="inline-flex items-center gap-1.5 mt-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
+                          <GraduationCap className="w-3 h-3 text-amber-600 shrink-0" />
+                          <span>{adv.career}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Especialidad Principal */}
+                    <div className="text-xs text-slate-600">
+                      <p className="line-clamp-2">
+                        <strong className="text-slate-700 font-semibold">Especialidad: </strong>
+                        {adv.specialty}
+                      </p>
+                    </div>
+
+                    {/* Temas de Asesoría */}
+                    {adv.advisoryTopics && adv.advisoryTopics.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                          Temas de asesoría:
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {adv.advisoryTopics.map((topic, i) => (
+                            <span
+                              key={i}
+                              className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200/60"
+                            >
+                              {topic}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer: Correo Electrónico */}
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-1.5 text-[11px] text-slate-500 truncate">
+                    <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate font-mono">{adv.email}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ===================================================================== */}
@@ -386,7 +611,9 @@ export function AdvisoryBookingView() {
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              {scheduleData ? `${scheduleData.weekStartDate} al ${scheduleData.weekEndDate}` : 'Cargando fechas...'}
+              {scheduleData
+                ? `${scheduleData.weekStartDate} al ${scheduleData.weekEndDate}`
+                : 'Cargando fechas...'}
             </p>
           </div>
         </div>
@@ -437,7 +664,9 @@ export function AdvisoryBookingView() {
             title="Refrescar agenda"
             className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
           >
-            <RefreshCw className={`w-4 h-4 ${loadingSchedule ? 'animate-spin text-sky-500' : ''}`} />
+            <RefreshCw
+              className={`w-4 h-4 ${loadingSchedule ? 'animate-spin text-sky-500' : ''}`}
+            />
           </button>
         </div>
       </div>
@@ -473,8 +702,136 @@ export function AdvisoryBookingView() {
           </div>
         </div>
 
-        {/* Tabla Responsiva y Compacta (Lunes a Sábado visible sin scroll forzado) */}
-        <div className="overflow-x-auto">
+        {/* M16: VISTA MÓVIL POR DÍA (< 640px) */}
+        <div className="block sm:hidden p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Día seleccionado:
+            </span>
+            {scheduleData?.days[mobileDayIdx] && (
+              <span className="text-xs font-extrabold text-sky-600">
+                {scheduleData.days[mobileDayIdx].dayName}
+              </span>
+            )}
+          </div>
+
+          {/* Selector de 6 botones de días */}
+          <div className="grid grid-cols-6 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            {scheduleData?.days.map((day, idx) => {
+              const isCurrent = mobileDayIdx === idx;
+              const dateParts = day.date.split('-');
+              const shortDate = `${dateParts[2]}/${dateParts[1]}`;
+              return (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => setMobileDayIdx(idx)}
+                  className={`py-2 px-1 rounded-lg text-center transition-all cursor-pointer flex flex-col items-center ${
+                    isCurrent
+                      ? 'bg-sky-600 text-white font-extrabold shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 font-semibold'
+                  }`}
+                >
+                  <span className="text-[11px] leading-tight uppercase">
+                    {day.dayName.slice(0, 3)}
+                  </span>
+                  <span className="text-[9px] font-mono leading-tight mt-0.5 opacity-90">
+                    {shortDate}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Lista vertical de los 9 bloques del día seleccionado */}
+          <div className="space-y-2 pt-1">
+            {scheduleData?.days[mobileDayIdx] &&
+              TIME_BLOCKS.map((tb) => {
+                const currentDay = scheduleData.days[mobileDayIdx];
+                const slotKey = `${currentDay.date}_${tb.id}`;
+                const slot = slotsMap.get(slotKey);
+                const state = slot ? slot.state : 'NO_ATIENDE';
+                const isSelected =
+                  selectedDate === currentDay.date && selectedBlockIds.includes(tb.id);
+                const isAvailable = state === 'DISPONIBLE';
+
+                return (
+                  <div
+                    key={tb.id}
+                    onClick={() => handleSlotClick(currentDay.date, tb.id, slot)}
+                    className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                      isSelected
+                        ? 'bg-sky-100 border-sky-500 ring-2 ring-sky-500 shadow-sm cursor-pointer'
+                        : isAvailable
+                        ? 'bg-white hover:bg-emerald-50/60 border-slate-200 hover:border-emerald-400 cursor-pointer shadow-2xs'
+                        : 'bg-slate-50/80 border-slate-200 cursor-not-allowed opacity-85'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center font-extrabold text-xs shrink-0 ${
+                          isSelected ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-800'
+                        }`}
+                      >
+                        {tb.id}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-mono font-bold text-slate-800 block">
+                          {tb.label}
+                        </span>
+                        {isAvailable && (
+                          <p className="text-[11px] text-emerald-700 truncate mt-0.5">
+                            {slot?.labName || 'Laboratorio UPN'}
+                          </p>
+                        )}
+                        {state === 'OCUPADO' && (
+                          <p className="text-[11px] text-amber-700 truncate mt-0.5">
+                            {slot?.advisoryBooking?.projectName || 'Asesoría Agendada'}
+                          </p>
+                        )}
+                        {state === 'LAB_SIN_CUPO' && (
+                          <p className="text-[11px] text-rose-700 truncate mt-0.5">
+                            Lab sin cupo ({slot?.labName})
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      {isSelected ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-sky-600 text-white text-xs font-bold">
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Elegido</span>
+                        </span>
+                      ) : state === 'DISPONIBLE' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-bold">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <span>Disponible</span>
+                        </span>
+                      ) : state === 'OCUPADO' ? (
+                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-bold">
+                          Ocupado
+                        </span>
+                      ) : state === 'LAB_SIN_CUPO' ? (
+                        <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 text-[11px] font-bold">
+                          Sin Cupo
+                        </span>
+                      ) : state === 'BLOQUEADO' ? (
+                        <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-600 text-[11px] font-medium">
+                          Bloqueado
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">No atiende</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+
+        {/* VISTA DESKTOP / TABLET (>= 640px) */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full border-collapse table-fixed text-left min-w-[700px] sm:min-w-full">
             <thead>
               <tr className="bg-slate-900 text-white text-xs">
@@ -482,7 +839,10 @@ export function AdvisoryBookingView() {
                   <span className="text-[10px] sm:text-xs">Bloque</span>
                 </th>
                 {scheduleData?.days.map((day) => (
-                  <th key={day.date} className="py-2.5 px-1 sm:px-1.5 font-semibold border-r border-slate-800 last:border-r-0 text-center w-[14.66%] sm:w-[15%]">
+                  <th
+                    key={day.date}
+                    className="py-2.5 px-1 sm:px-1.5 font-semibold border-r border-slate-800 last:border-r-0 text-center w-[14.66%] sm:w-[15%]"
+                  >
                     <div className="text-sky-400 uppercase tracking-wider text-[10px] sm:text-[11px] font-extrabold truncate">
                       {day.dayName}
                     </div>
@@ -498,8 +858,12 @@ export function AdvisoryBookingView() {
                 <tr key={tb.id} className="hover:bg-slate-50/50 transition-colors">
                   {/* Celda del Bloque */}
                   <td className="py-2 px-1 sm:px-1.5 bg-slate-50/90 font-medium text-slate-700 border-r border-slate-200 text-center align-middle">
-                    <div className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">{tb.id}</div>
-                    <div className="text-[8.5px] sm:text-[9.5px] text-slate-500 font-mono leading-tight mt-0.5 whitespace-nowrap">{tb.label}</div>
+                    <div className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">
+                      {tb.id}
+                    </div>
+                    <div className="text-[8.5px] sm:text-[9.5px] text-slate-500 font-mono leading-tight mt-0.5 whitespace-nowrap">
+                      {tb.label}
+                    </div>
                   </td>
 
                   {/* Celdas de Días */}
@@ -507,7 +871,8 @@ export function AdvisoryBookingView() {
                     const slotKey = `${day.date}_${tb.id}`;
                     const slot = slotsMap.get(slotKey);
                     const state = slot ? slot.state : 'NO_ATIENDE';
-                    const isSelected = selectedDate === day.date && selectedBlockIds.includes(tb.id);
+                    const isSelected =
+                      selectedDate === day.date && selectedBlockIds.includes(tb.id);
                     const isAvailable = state === 'DISPONIBLE';
 
                     return (
@@ -545,7 +910,10 @@ export function AdvisoryBookingView() {
                         ) : state === 'OCUPADO' ? (
                           <div className="p-1 sm:p-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 h-full min-h-[46px] flex flex-col justify-between">
                             <div className="font-bold text-[8.5px] sm:text-[9.5px]">Ocupado</div>
-                            <div className="text-[8px] sm:text-[8.5px] text-amber-700 truncate mt-0.5" title={slot?.advisoryBooking?.projectName}>
+                            <div
+                              className="text-[8px] sm:text-[8.5px] text-amber-700 truncate mt-0.5"
+                              title={slot?.advisoryBooking?.projectName}
+                            >
                               {slot?.advisoryBooking?.projectName || 'Asesoría Agendada'}
                             </div>
                           </div>
@@ -591,12 +959,11 @@ export function AdvisoryBookingView() {
               </h2>
               <p className="text-xs text-slate-600 mt-1">
                 Fecha: <strong>{selectedDate}</strong> • Bloques:{' '}
-                <strong className="text-sky-600">
-                  {selectedBlockIds.sort().join(', ')}
-                </strong>{' '}
-                • Laboratorio asignado:{' '}
+                <strong className="text-sky-600">{selectedBlockIds.sort().join(', ')}</strong> •
+                Laboratorio asignado:{' '}
                 <strong className="text-slate-800">
-                  {selectedSlotLabId && LAB_MAP[selectedSlotLabId as keyof typeof LAB_MAP]?.name || 'Laboratorio UPN'}
+                  {(selectedSlotLabId && LAB_MAP[selectedSlotLabId as keyof typeof LAB_MAP]?.name) ||
+                    'Laboratorio UPN'}
                 </strong>
               </p>
             </div>
@@ -609,22 +976,44 @@ export function AdvisoryBookingView() {
                 setSelectedDate(null);
                 setSelectedSlotLabId(null);
               }}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
+          {/* Banner M18: Datos recordados */}
+          {hasRememberedProfile && (
+            <div className="mt-4 p-3 rounded-xl bg-sky-50/70 border border-sky-200 flex items-center justify-between text-xs text-sky-950">
+              <div className="flex items-center gap-2">
+                <BookmarkCheck className="w-4 h-4 text-sky-600 shrink-0" />
+                <span>Tus datos de estudiante han sido recordados en este navegador.</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleForgetProfile}
+                className="text-[11px] font-bold text-sky-800 hover:text-sky-950 underline cursor-pointer shrink-0 ml-2"
+              >
+                Olvidar datos
+              </button>
+            </div>
+          )}
+
           {/* Aviso informativo de doble impacto (Asesoría + Cupo en Lab) */}
-          <div className="mt-6 p-4 rounded-2xl bg-sky-50 border border-sky-200 flex items-start gap-3">
+          <div className="mt-4 p-4 rounded-2xl bg-sky-50 border border-sky-200 flex items-start gap-3">
             <Info className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
             <div className="text-xs text-sky-900 leading-relaxed">
-              <strong>Importante:</strong> Al confirmar esta asesoría, el sistema registrará de forma automática un cupo de reserva a tu nombre en el laboratorio asignado (<strong>{selectedSlotLabId && LAB_MAP[selectedSlotLabId as keyof typeof LAB_MAP]?.name}</strong>) y enviará una invitación oficial al Google Calendar del asesor y de tu equipo.
+              <strong>Importante:</strong> Al confirmar esta asesoría, el sistema registrará de
+              forma automática un cupo de reserva a tu nombre en el laboratorio asignado (
+              <strong>
+                {selectedSlotLabId && LAB_MAP[selectedSlotLabId as keyof typeof LAB_MAP]?.name}
+              </strong>
+              ) y enviará una invitación oficial al Google Calendar del asesor y de tu equipo.
             </div>
           </div>
 
           <form onSubmit={handleSubmitAdvisory} className="mt-6 space-y-6">
-            {/* Campos de Proyecto */}
+            {/* Campos de Proyecto y Curso M11 */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
@@ -640,18 +1029,53 @@ export function AdvisoryBookingView() {
                 />
               </div>
 
+              {/* M11: Selector de Curso con catálogo oficial */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Curso <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={course}
-                  onChange={(e) => setCourse(e.target.value)}
-                  placeholder="Ej. Robótica Industrial"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                />
+                {!isCustomCourse ? (
+                  <select
+                    value={selectedCourse}
+                    onChange={(e) => {
+                      if (e.target.value === '__OTHER__') {
+                        setIsCustomCourse(true);
+                      } else {
+                        setSelectedCourse(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none cursor-pointer"
+                  >
+                    {UPN_LAB_COURSES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                    <option value="__OTHER__">+ Otro curso...</option>
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      required
+                      value={customCourse}
+                      onChange={(e) => setCustomCourse(e.target.value)}
+                      placeholder="Escribe el nombre del curso"
+                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomCourse(false);
+                        setSelectedCourse(UPN_LAB_COURSES[0] || '');
+                      }}
+                      className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer shrink-0"
+                      title="Volver a lista oficial"
+                    >
+                      Lista
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -683,7 +1107,7 @@ export function AdvisoryBookingView() {
               />
             </div>
 
-            {/* Sección de Estudiantes (De base 1, con botón '+ Añadir estudiante') */}
+            {/* Sección de Estudiantes con Autocompletado M18 */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -692,7 +1116,8 @@ export function AdvisoryBookingView() {
                     <span>Estudiantes Participantes ({students.length})</span>
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Ingresa a los integrantes que asistirán a la sesión técnica.
+                    Ingresa a los integrantes que asistirán a la sesión técnica (autocompleta por
+                    código UPN).
                   </p>
                 </div>
 
@@ -718,18 +1143,18 @@ export function AdvisoryBookingView() {
                     <input
                       type="text"
                       required
-                      value={st.fullName}
-                      onChange={(e) => handleUpdateStudent(idx, 'fullName', e.target.value)}
-                      placeholder="Nombres y Apellidos del Estudiante"
-                      className="flex-1 w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                      value={st.upnCode}
+                      onChange={(e) => handleUpdateStudent(idx, 'upnCode', e.target.value)}
+                      placeholder="Código UPN (N00...)"
+                      className="w-full sm:w-44 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
                     />
                     <input
                       type="text"
                       required
-                      value={st.upnCode}
-                      onChange={(e) => handleUpdateStudent(idx, 'upnCode', e.target.value.toUpperCase())}
-                      placeholder="Código UPN (N00...)"
-                      className="w-full sm:w-44 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
+                      value={st.fullName}
+                      onChange={(e) => handleUpdateStudent(idx, 'fullName', e.target.value)}
+                      placeholder="Nombres y Apellidos del Estudiante"
+                      className="flex-1 w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
                     />
                     {students.length > 1 && (
                       <button
@@ -756,7 +1181,7 @@ export function AdvisoryBookingView() {
                   setSelectedDate(null);
                   setSelectedSlotLabId(null);
                 }}
-                className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-800 transition-colors"
+                className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-800 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
@@ -796,7 +1221,8 @@ export function AdvisoryBookingView() {
                 ¡Asesoría Agendada Exitosamente!
               </h3>
               <p className="text-xs text-slate-500">
-                Se ha enviado la invitación al Google Calendar del asesor y se ha bloqueado 1 cupo en el laboratorio.
+                Se ha enviado la invitación al Google Calendar del asesor y se ha bloqueado 1 cupo
+                en el laboratorio.
               </p>
             </div>
 

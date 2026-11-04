@@ -34,7 +34,14 @@ import {
   DEFAULT_LABORATORIES,
   ACADEMIC_CYCLES,
   DEFAULT_TEACHERS_CATALOG,
+  LAB_EQUIPMENT_CATALOG,
+  UPN_LAB_COURSES,
 } from '@/constants/schedule';
+import {
+  loadSavedStudentProfile,
+  saveStudentProfile,
+  lookupStudentByUpnCode,
+} from '@/lib/student-profile-storage';
 import { useToast } from '@/components/shared/ToastProvider';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SignatureCanvas } from '@/components/shared/SignatureCanvas';
@@ -42,6 +49,35 @@ import { SignatureCanvas } from '@/components/shared/SignatureCanvas';
 interface EquipmentLoanFormProps {
   initialCode?: string;
   mode?: 'form' | 'lookup';
+}
+
+interface EquipmentLoanItemRow extends EquipmentLoanItem {
+  isManual?: boolean;
+}
+
+export function LoanStatusBadge({ status }: { status: EquipmentLoan['status'] }) {
+  if (status === 'EN_USO') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-300">
+        <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+        En Préstamo Activo (Entregado al Alumno)
+      </span>
+    );
+  }
+  if (status === 'DEVUELTO' || status === 'ENTREGADO') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+        Devuelto al Laboratorio
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300">
+      <Clock className="w-3.5 h-3.5 text-amber-600" />
+      Pendiente de Entrega en Laboratorio
+    </span>
+  );
 }
 
 export function EquipmentLoanForm({
@@ -65,8 +101,8 @@ export function EquipmentLoanForm({
   const [attendedByAdvisorId, setAttendedByAdvisorId] = useState<string>('');
 
   // Tabla dinámica de Equipos (3 columnas) — Base: 1 fila
-  const [items, setItems] = useState<EquipmentLoanItem[]>([
-    { quantity: 1, equipmentName: '', upnCode: '' },
+  const [items, setItems] = useState<EquipmentLoanItemRow[]>([
+    { quantity: 1, equipmentName: '', upnCode: '', isManual: false },
   ]);
 
   // Sección Integrantes del Grupo (2 columnas) — Base: 1 fila
@@ -88,6 +124,39 @@ export function EquipmentLoanForm({
   const [searching, setSearching] = useState<boolean>(false);
   const [searchedLoan, setSearchedLoan] = useState<EquipmentLoan | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // M18: Autoguardado y precarga de datos del estudiante (localStorage)
+  useEffect(() => {
+    const profile = loadSavedStudentProfile();
+    if (profile) {
+      if (profile.fullName) {
+        setResponsibleName((prev) => prev || profile.fullName);
+        setGroupMembers((prev) => {
+          if (prev.length > 0 && !prev[0].fullName) {
+            return [{ fullName: profile.fullName, nrc: profile.nrc || prev[0].nrc || '' }, ...prev.slice(1)];
+          }
+          return prev;
+        });
+      }
+      if (profile.upnCode) {
+        setResponsibleUpnCode((prev) => prev || profile.upnCode);
+      }
+      if (profile.nrc) {
+        setGroupMembers((prev) => {
+          if (prev.length > 0 && !prev[0].nrc) {
+            return [{ fullName: prev[0].fullName || profile.fullName, nrc: profile.nrc || '' }, ...prev.slice(1)];
+          }
+          return prev;
+        });
+      }
+      if (profile.course) {
+        setCourseProgram((prev) => prev || profile.course || '');
+      }
+      if (profile.cycle) {
+        setCycle((prev) => prev || profile.cycle || 'Ciclo V');
+      }
+    }
+  }, []);
 
   // Carga inicial del catálogo
   useEffect(() => {
@@ -120,19 +189,100 @@ export function EquipmentLoanForm({
   // Manejo de Filas Dinámicas: Equipos y Materiales
   // --------------------------------------------------------------------------
   const handleAddItem = () => {
-    setItems((prev) => [...prev, { quantity: 1, equipmentName: '', upnCode: '' }]);
+    setItems((prev) => [...prev, { quantity: 1, equipmentName: '', upnCode: '', isManual: false }]);
   };
 
   const handleUpdateItem = (
     index: number,
-    field: keyof EquipmentLoanItem,
-    value: string | number
+    field: keyof EquipmentLoanItemRow,
+    value: string | number | boolean
   ) => {
     setItems((prev) => {
       const copy = [...prev];
       copy[index] = { ...copy[index], [field]: value };
       return copy;
     });
+  };
+
+  const handleCatalogSelect = (index: number, selectedValue: string) => {
+    if (selectedValue === '__OTHER__') {
+      setItems((prev) => {
+        const copy = [...prev];
+        copy[index] = {
+          ...copy[index],
+          equipmentName: '',
+          upnCode: '',
+          isManual: true,
+        };
+        return copy;
+      });
+      return;
+    }
+
+    const currentCatalog = LAB_EQUIPMENT_CATALOG[labId] || [];
+    const catItem = currentCatalog.find((c) => c.name === selectedValue);
+    if (!catItem) {
+      handleUpdateItem(index, 'equipmentName', selectedValue);
+      return;
+    }
+
+    const defaultCode =
+      catItem.sampleCodes && catItem.sampleCodes.length > 0 && catItem.sampleCodes[0] !== 'S/C'
+        ? catItem.sampleCodes[0]
+        : (catItem.sampleCodes?.[0] || 'S/C');
+
+    setItems((prev) => {
+      const copy = [...prev];
+      copy[index] = {
+        ...copy[index],
+        equipmentName: catItem.name,
+        upnCode: defaultCode,
+        isManual: false,
+      };
+      return copy;
+    });
+  };
+
+  const handleSwitchToCatalog = (index: number) => {
+    setItems((prev) => {
+      const copy = [...prev];
+      copy[index] = {
+        ...copy[index],
+        equipmentName: '',
+        upnCode: '',
+        isManual: false,
+      };
+      return copy;
+    });
+  };
+
+  // M9: Copiar datos del Integrante #1 como solicitante responsable
+  const handleCopyMember1ToResponsible = () => {
+    const member1 = groupMembers[0];
+    if (!member1 || !member1.fullName.trim()) {
+      showToast('Por favor, ingresa primero los nombres del Integrante #1.', 'warning');
+      return;
+    }
+    setResponsibleName(member1.fullName.trim());
+    // Buscar si existe un código UPN asociado en el directorio o perfil
+    const saved = loadSavedStudentProfile();
+    if (saved && saved.fullName.toLowerCase() === member1.fullName.trim().toLowerCase() && saved.upnCode) {
+      setResponsibleUpnCode(saved.upnCode);
+    }
+    showToast(`Se copiaron los datos de ${member1.fullName.trim()} como responsable.`, 'success');
+  };
+
+  // M18: Búsqueda rápida por código UPN
+  const handleResponsibleUpnCodeChange = (raw: string) => {
+    const code = raw.toUpperCase();
+    setResponsibleUpnCode(code);
+    if (code.trim().length >= 4) {
+      const found = lookupStudentByUpnCode(code);
+      if (found && found.fullName && !responsibleName.trim()) {
+        setResponsibleName(found.fullName);
+        showToast(`Nombre autocompletado para ${found.upnCode}: ${found.fullName}`, 'info');
+      }
+    }
   };
 
   const handleRemoveItem = (index: number) => {
@@ -248,6 +398,15 @@ export function EquipmentLoanForm({
     try {
       const res = await apiClient.createEquipmentLoan(payload);
       setCreatedLoan(res.loan);
+      // M18: Guardar en almacenamiento local para recordar datos del estudiante
+      saveStudentProfile({
+        fullName: responsibleName.trim(),
+        upnCode: responsibleUpnCode.trim().toUpperCase(),
+        course: courseProgram.trim(),
+        cycle,
+        nrc: groupMembers[0]?.nrc?.trim() || undefined,
+        teacherName: finalTeacherName,
+      });
       showToast(`¡Solicitud de préstamo ${res.loan.code} generada exitosamente!`, 'success');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al registrar préstamo';
@@ -409,11 +568,17 @@ export function EquipmentLoanForm({
                 <input
                   type="text"
                   required
+                  list="loan-courses-list"
                   value={courseProgram}
                   onChange={(e) => setCourseProgram(e.target.value)}
-                  placeholder="Ej. Circuitos Electrónicos II / Ing. Mecatrónica"
+                  placeholder="Ej. Circuitos Eléctricos / Ing. Electrónica"
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 />
+                <datalist id="loan-courses-list">
+                  {UPN_LAB_COURSES.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
 
               {/* Atendido por Asistente o Supervisor */}
@@ -473,63 +638,121 @@ export function EquipmentLoanForm({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
-                    {items.map((it, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50">
-                        <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="number"
-                            min="1"
-                            max="99"
-                            required
-                            value={it.quantity}
-                            onChange={(e) =>
-                              handleUpdateItem(idx, 'quantity', parseInt(e.target.value) || 1)
-                            }
-                            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 text-center font-bold"
-                          />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="text"
-                            required
-                            value={it.equipmentName}
-                            onChange={(e) =>
-                              handleUpdateItem(idx, 'equipmentName', e.target.value)
-                            }
-                            placeholder="Ej. Osciloscopio Digital Tektronix 50MHz"
-                            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900"
-                          />
-                        </td>
-                        <td
-                          className={`p-2 ${
-                            items.length > 1 ? 'border-r border-slate-200' : ''
-                          }`}
-                        >
-                          <input
-                            type="text"
-                            required
-                            value={it.upnCode}
-                            onChange={(e) =>
-                              handleUpdateItem(idx, 'upnCode', e.target.value.toUpperCase())
-                            }
-                            placeholder="Ej. ACT-ELE-0842"
-                            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-mono"
-                          />
-                        </td>
-                        {items.length > 1 && (
-                          <td className="p-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(idx)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="Eliminar fila"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                    {items.map((it, idx) => {
+                      const labCatalog = LAB_EQUIPMENT_CATALOG[labId] || [];
+                      const matchingCatItem = labCatalog.find((c) => c.name === it.equipmentName);
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/50">
+                          <td className="p-2 border-r border-slate-200 align-top">
+                            <input
+                              type="number"
+                              min="1"
+                              max="99"
+                              required
+                              value={it.quantity}
+                              onChange={(e) =>
+                                handleUpdateItem(idx, 'quantity', parseInt(e.target.value) || 1)
+                              }
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 text-center font-bold"
+                            />
                           </td>
-                        )}
-                      </tr>
-                    ))}
+                          <td className="p-2 border-r border-slate-200 align-top">
+                            {it.isManual ? (
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  required
+                                  value={it.equipmentName}
+                                  onChange={(e) =>
+                                    handleUpdateItem(idx, 'equipmentName', e.target.value)
+                                  }
+                                  placeholder="Ej. Multímetro digital, protoboard..."
+                                  className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleSwitchToCatalog(idx)}
+                                  className="px-2 py-1.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg shrink-0 transition-colors cursor-pointer"
+                                  title="Volver a seleccionar del catálogo"
+                                >
+                                  Catálogo
+                                </button>
+                              </div>
+                            ) : (
+                              <select
+                                value={it.equipmentName}
+                                onChange={(e) => handleCatalogSelect(idx, e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none cursor-pointer"
+                              >
+                                <option value="">-- Seleccionar equipo del laboratorio --</option>
+                                {labCatalog.map((cat) => (
+                                  <option key={cat.name} value={cat.name}>
+                                    {cat.name} [{cat.totalUnits} uds.]
+                                  </option>
+                                ))}
+                                <option value="__OTHER__">+ Otro equipo o material (escribir manualmente)...</option>
+                              </select>
+                            )}
+                          </td>
+                          <td
+                            className={`p-2 align-top ${
+                              items.length > 1 ? 'border-r border-slate-200' : ''
+                            }`}
+                          >
+                            <input
+                              type="text"
+                              required
+                              list={`sample-codes-${idx}`}
+                              value={it.upnCode}
+                              onChange={(e) =>
+                                handleUpdateItem(idx, 'upnCode', e.target.value.toUpperCase())
+                              }
+                              placeholder={matchingCatItem?.sampleCodes?.[0] || 'Ej. 1-011824 o S/C'}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-mono"
+                            />
+                            <datalist id={`sample-codes-${idx}`}>
+                              {matchingCatItem?.sampleCodes?.map((code) => (
+                                <option key={code} value={code}>
+                                  {code}
+                                </option>
+                              ))}
+                            </datalist>
+                            {matchingCatItem && matchingCatItem.sampleCodes && matchingCatItem.sampleCodes.length > 1 && (
+                              <div className="mt-1 flex flex-wrap items-center gap-1">
+                                <span className="text-[10px] text-slate-400">Códigos:</span>
+                                {matchingCatItem.sampleCodes.map((code) => (
+                                  <button
+                                    key={code}
+                                    type="button"
+                                    onClick={() => handleUpdateItem(idx, 'upnCode', code)}
+                                    className={`px-1.5 py-0.2 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+                                      it.upnCode === code
+                                        ? 'bg-amber-400 text-slate-950 font-bold'
+                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                    }`}
+                                  >
+                                    {code}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          {items.length > 1 && (
+                            <td className="p-2 text-center align-top">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(idx)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Eliminar fila"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -623,11 +846,22 @@ export function EquipmentLoanForm({
 
             {/* SECCIÓN SOLICITANTE DEL PRÉSTAMO (RESPONSABLE) + FIRMA CANVAS */}
             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 space-y-6">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-amber-600" />
-                <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                  SOLICITANTE DEL PRÉSTAMO (RESPONSABLE)
-                </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-amber-600" />
+                  <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+                    SOLICITANTE DEL PRÉSTAMO (RESPONSABLE)
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyMember1ToResponsible}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-bold transition-colors cursor-pointer border border-amber-300 shadow-2xs self-start sm:self-auto"
+                  title="Copiar datos del integrante #1 como solicitante responsable"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Usar datos del Integrante #1 como responsable</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -653,7 +887,7 @@ export function EquipmentLoanForm({
                     type="text"
                     required
                     value={responsibleUpnCode}
-                    onChange={(e) => setResponsibleUpnCode(e.target.value.toUpperCase())}
+                    onChange={(e) => handleResponsibleUpnCodeChange(e.target.value)}
                     placeholder="Ej. N00392817"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono"
                   />
@@ -746,7 +980,7 @@ export function EquipmentLoanForm({
               {createdLoan.code}
             </div>
             <div className="pt-2">
-              <StatusBadge status={createdLoan.status} size="md" />
+              <LoanStatusBadge status={createdLoan.status} />
             </div>
           </div>
 
@@ -932,7 +1166,7 @@ export function EquipmentLoanForm({
                     {searchedLoan.code}
                   </div>
                 </div>
-                <StatusBadge status={searchedLoan.status} size="md" />
+                <LoanStatusBadge status={searchedLoan.status} />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -960,9 +1194,15 @@ export function EquipmentLoanForm({
                     <span className="text-slate-500">Código UPN:</span>
                     <span className="font-mono text-slate-900">{searchedLoan.responsibleUpnCode}</span>
                   </div>
+                  {searchedLoan.handedOutAt && (
+                    <div className="flex justify-between text-blue-700">
+                      <span>Entregado en Uso:</span>
+                      <span className="font-mono">{new Date(searchedLoan.handedOutAt).toLocaleString()}</span>
+                    </div>
+                  )}
                   {searchedLoan.deliveredAt && (
                     <div className="flex justify-between text-emerald-700">
-                      <span>Devuelto el:</span>
+                      <span>Devuelto al Laboratorio:</span>
                       <span className="font-mono">{new Date(searchedLoan.deliveredAt).toLocaleString()}</span>
                     </div>
                   )}

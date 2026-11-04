@@ -31,7 +31,16 @@ import {
   Print3DStatus,
   StlFileMetadata,
 } from '@/types/labhub';
-import { PRINT_3D_STATUSES, DEFAULT_TEACHERS_CATALOG } from '@/constants/schedule';
+import {
+  PRINT_3D_STATUSES,
+  DEFAULT_TEACHERS_CATALOG,
+  UPN_LAB_COURSES,
+} from '@/constants/schedule';
+import {
+  loadSavedStudentProfile,
+  saveStudentProfile,
+  lookupStudentByUpnCode,
+} from '@/lib/student-profile-storage';
 import { parseStlBuffer, ParsedStlGeometry, validateStlFileName } from '@/lib/stl-parser';
 import { useToast } from '@/components/shared/ToastProvider';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -63,7 +72,43 @@ export function Print3DPortalView({
   const [studentFullName, setStudentFullName] = useState<string>('');
   const [upnCode, setUpnCode] = useState<string>('');
   const [course, setCourse] = useState<string>('');
+  const [selectedCourse, setSelectedCourse] = useState<string>(UPN_LAB_COURSES[0] || '');
+  const [isCustomCourse, setIsCustomCourse] = useState<boolean>(false);
+  const [customCourse, setCustomCourse] = useState<string>('');
   const [nrc, setNrc] = useState<string>('');
+
+  // M18: Autoguardado y precarga de datos del estudiante (localStorage)
+  useEffect(() => {
+    const profile = loadSavedStudentProfile();
+    if (profile) {
+      if (profile.fullName) setStudentFullName((prev) => prev || profile.fullName);
+      if (profile.upnCode) setUpnCode((prev) => prev || profile.upnCode);
+      if (profile.nrc) setNrc((prev) => prev || profile.nrc || '');
+      if (profile.teacherName) setSelectedTeacher((prev) => prev || profile.teacherName || '');
+      if (profile.course) {
+        if (UPN_LAB_COURSES.includes(profile.course)) {
+          setSelectedCourse(profile.course);
+          setIsCustomCourse(false);
+        } else {
+          setIsCustomCourse(true);
+          setCustomCourse(profile.course);
+        }
+      }
+    }
+  }, []);
+
+  // M18: Búsqueda rápida y autocompletado por código UPN
+  const handleUpnCodeChange = (raw: string) => {
+    const code = raw.toUpperCase();
+    setUpnCode(code);
+    if (code.trim().length >= 4) {
+      const found = lookupStudentByUpnCode(code);
+      if (found && found.fullName && !studentFullName.trim()) {
+        setStudentFullName(found.fullName);
+        showToast(`Nombre autocompletado para ${found.upnCode}: ${found.fullName}`, 'info');
+      }
+    }
+  };
 
   // Archivos STL cargados en memoria y analizados en cliente
   const [stlLst, setStlLst] = useState<StlLocalFile[]>([]);
@@ -185,7 +230,9 @@ export function Print3DPortalView({
       return;
     }
 
-    if (!studentFullName.trim() || !upnCode.trim() || !course.trim() || !nrc.trim()) {
+    const finalCourse = isCustomCourse ? customCourse.trim() : (selectedCourse || course).trim();
+
+    if (!studentFullName.trim() || !upnCode.trim() || !finalCourse || !nrc.trim()) {
       showToast('Completa todos los campos obligatorios del formulario.', 'warning');
       return;
     }
@@ -194,7 +241,7 @@ export function Print3DPortalView({
     formData.append('studentFullName', studentFullName.trim());
     formData.append('upnCode', upnCode.trim().toUpperCase());
     formData.append('teacherName', teacherName);
-    formData.append('course', course.trim());
+    formData.append('course', finalCourse);
     formData.append('nrc', nrc.trim());
 
     stlLst.forEach((item) => {
@@ -205,6 +252,14 @@ export function Print3DPortalView({
     try {
       const res = await apiClient.createPrint3DRequest(formData);
       setCreatedRequest(res.printRequest);
+      // M18: Autoguardar datos del estudiante
+      saveStudentProfile({
+        fullName: studentFullName.trim(),
+        upnCode: upnCode.trim().toUpperCase(),
+        course: finalCourse,
+        nrc: nrc.trim(),
+        teacherName,
+      });
       showToast(`¡Solicitud ${res.printRequest.code} creada exitosamente!`, 'success');
       // Limpiar archivos locales
       setStlLst([]);
@@ -382,7 +437,7 @@ export function Print3DPortalView({
                   type="text"
                   required
                   value={upnCode}
-                  onChange={(e) => setUpnCode(e.target.value.toUpperCase())}
+                  onChange={(e) => handleUpnCodeChange(e.target.value)}
                   placeholder="Ej. N00248192"
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
                 />
@@ -425,7 +480,7 @@ export function Print3DPortalView({
                     <button
                       type="button"
                       onClick={() => setIsCustomTeacher(false)}
-                      className="px-2.5 py-2 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700"
+                      className="px-2.5 py-2 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 cursor-pointer"
                     >
                       Lista
                     </button>
@@ -437,14 +492,44 @@ export function Print3DPortalView({
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Curso <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={course}
-                  onChange={(e) => setCourse(e.target.value)}
-                  placeholder="Ej. Diseño y Manufactura Digital"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
+                {!isCustomCourse ? (
+                  <select
+                    value={selectedCourse}
+                    onChange={(e) => {
+                      if (e.target.value === '__OTHER__') {
+                        setIsCustomCourse(true);
+                      } else {
+                        setSelectedCourse(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
+                  >
+                    {UPN_LAB_COURSES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                    <option value="__OTHER__">+ Otro curso...</option>
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      required
+                      value={customCourse}
+                      onChange={(e) => setCustomCourse(e.target.value)}
+                      placeholder="Nombre del Curso"
+                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomCourse(false)}
+                      className="px-2.5 py-2 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 cursor-pointer"
+                    >
+                      Lista
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -954,61 +1039,102 @@ export function Print3DPortalView({
 }
 
 // ----------------------------------------------------------------------------
-// COMPONENTE: LÍNEA DE TIEMPO VISUAL DE LOS 7 ESTADOS
+// COMPONENTE: LÍNEA DE TIEMPO VISUAL HORIZONTAL (STEPPER 6 PASOS + OBSERVADO)
 // ----------------------------------------------------------------------------
 function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
+  // M17: Pasos oficiales del flujo de prototipado 3D
   const steps: { status: Print3DStatus; label: string }[] = [
     { status: 'ENVIADO', label: 'Enviado' },
     { status: 'EN REVISION', label: 'En Revisión' },
-    { status: 'OBSERVADO', label: 'Observado' },
     { status: 'EN COLA', label: 'En Cola' },
     { status: 'IMPRIMIENDO', label: 'Imprimiendo' },
     { status: 'LISTA', label: 'Lista' },
     { status: 'ENTREGADA', label: 'Entregada' },
   ];
 
-  const currentIndex = steps.findIndex((s) => s.status === currentStatus);
+  // Calcular índice del paso actual
+  let activeIndex = 0;
+  if (currentStatus === 'EN REVISION' || currentStatus === 'OBSERVADO') {
+    activeIndex = 1;
+  } else if (currentStatus === 'EN COLA') {
+    activeIndex = 2;
+  } else if (currentStatus === 'IMPRIMIENDO') {
+    activeIndex = 3;
+  } else if (currentStatus === 'LISTA') {
+    activeIndex = 4;
+  } else if (currentStatus === 'ENTREGADA') {
+    activeIndex = 5;
+  }
+
+  const isObserved = currentStatus === 'OBSERVADO';
 
   return (
-    <div className="overflow-x-auto py-2">
-      <div className="flex items-center min-w-[700px] justify-between relative">
-        {/* Barra de progreso de fondo */}
-        <div className="absolute top-4 left-6 right-6 h-1 bg-slate-200 -z-0" />
+    <div className="space-y-4">
+      {/* Alerta si está observado en revisión */}
+      {isObserved && (
+        <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 flex items-center gap-3 text-rose-900 shadow-2xs animate-in fade-in">
+          <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-4 h-4 animate-bounce" />
+          </div>
+          <div>
+            <span className="text-xs font-extrabold uppercase tracking-wider block">
+              Observado en Revisión (Requiere Subsanación)
+            </span>
+            <span className="text-[11px] text-rose-700">
+              El asistente técnico ha solicitado correcciones en tus archivos .STL dentro de la ventana de 72 horas.
+            </span>
+          </div>
+        </div>
+      )}
 
-        {steps.map((step, idx) => {
-          const isPassed = idx < currentIndex;
-          const isCurrent = idx === currentIndex;
-          const isObserved = step.status === 'OBSERVADO' && currentStatus === 'OBSERVADO';
+      {/* Stepper Horizontal */}
+      <div className="overflow-x-auto py-3">
+        <div className="flex items-center min-w-[720px] justify-between relative px-2">
+          {/* Barra conectora de fondo */}
+          <div className="absolute top-5 left-8 right-8 h-1 bg-slate-200 -z-0" />
 
-          return (
-            <div key={step.status} className="flex flex-col items-center relative z-10 space-y-1.5">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
-                  isObserved
-                    ? 'bg-rose-500 text-white ring-4 ring-rose-200 animate-pulse'
-                    : isCurrent
-                    ? 'bg-indigo-600 text-white ring-4 ring-indigo-200 shadow-md'
-                    : isPassed
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-white border-2 border-slate-300 text-slate-400'
-                }`}
-              >
-                {isPassed ? <Check className="w-4 h-4" /> : idx + 1}
+          {steps.map((step, idx) => {
+            const isPassed = idx < activeIndex;
+            const isCurrent = idx === activeIndex;
+
+            return (
+              <div key={step.status} className="flex flex-col items-center relative z-10 space-y-2">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
+                    isCurrent && isObserved
+                      ? 'bg-rose-500 text-white ring-4 ring-rose-200 shadow-md animate-pulse'
+                      : isCurrent
+                      ? 'bg-amber-500 text-slate-950 font-black ring-4 ring-amber-200 shadow-md'
+                      : isPassed
+                      ? 'bg-emerald-500 text-white ring-2 ring-emerald-100 shadow-xs'
+                      : 'bg-white border-2 border-slate-300 text-slate-400'
+                  }`}
+                >
+                  {isCurrent && isObserved ? (
+                    <AlertTriangle className="w-4 h-4" />
+                  ) : isPassed ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    idx + 1
+                  )}
+                </div>
+                <span
+                  className={`text-[11px] whitespace-nowrap text-center ${
+                    isCurrent && isObserved
+                      ? 'text-rose-600 font-extrabold'
+                      : isCurrent
+                      ? 'text-amber-800 font-extrabold'
+                      : isPassed
+                      ? 'text-emerald-700 font-bold'
+                      : 'text-slate-400 font-medium'
+                  }`}
+                >
+                  {step.label}
+                </span>
               </div>
-              <span
-                className={`text-[11px] font-semibold whitespace-nowrap ${
-                  isCurrent
-                    ? 'text-indigo-600 font-bold'
-                    : isPassed
-                    ? 'text-slate-800'
-                    : 'text-slate-400'
-                }`}
-              >
-                {step.label}
-              </span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -1044,13 +1170,14 @@ function ObservationPanel({
   }>({ hours: 0, minutes: 0, seconds: 0, expired: false });
 
   useEffect(() => {
-    if (!request.observationExpiresAt) return;
-
-    const expires = new Date(request.observationExpiresAt).getTime();
+    // Si no tiene observationExpiresAt pero está observado, calcular 72 horas desde createdAt
+    const expiresMs = request.observationExpiresAt
+      ? new Date(request.observationExpiresAt).getTime()
+      : new Date(request.createdAt).getTime() + 72 * 60 * 60 * 1000;
 
     const updateTimer = () => {
       const now = Date.now();
-      const diff = expires - now;
+      const diff = expiresMs - now;
 
       if (diff <= 0) {
         setTimeLeft({ hours: 0, minutes: 0, seconds: 0, expired: true });
@@ -1067,7 +1194,7 @@ function ObservationPanel({
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [request.observationExpiresAt]);
+  }, [request.observationExpiresAt, request.createdAt]);
 
   return (
     <div className="bg-rose-50/70 border-2 border-rose-300 rounded-3xl p-6 sm:p-8 space-y-6">
@@ -1086,7 +1213,7 @@ function ObservationPanel({
           </div>
         </div>
 
-        {/* RELOJ REGRESIVO EN VIVO */}
+        {/* RELOJ REGRESIVO EN VIVO (HORAS : MINUTOS : SEGUNDOS) */}
         <div className="bg-white rounded-2xl px-5 py-3 border border-rose-200 shadow-xs text-center shrink-0">
           <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">
             Plazo Límite de 72 Horas:
@@ -1094,12 +1221,10 @@ function ObservationPanel({
           {timeLeft.expired ? (
             <span className="text-sm font-bold text-rose-700">Plazo Vencido</span>
           ) : (
-            <div className="text-xl font-mono font-extrabold text-rose-800 tracking-wider mt-0.5 flex items-center justify-center gap-1">
+            <div className="text-base sm:text-lg font-mono font-extrabold text-rose-800 tracking-wider mt-0.5 flex items-center justify-center gap-1.5">
               <Timer className="w-4 h-4 text-rose-500 animate-spin" />
               <span>
-                {String(timeLeft.hours).padStart(2, '0')}:
-                {String(timeLeft.minutes).padStart(2, '0')}:
-                {String(timeLeft.seconds).padStart(2, '0')}
+                {String(timeLeft.hours).padStart(2, '0')}h : {String(timeLeft.minutes).padStart(2, '0')}m : {String(timeLeft.seconds).padStart(2, '0')}s
               </span>
             </div>
           )}

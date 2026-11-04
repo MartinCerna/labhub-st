@@ -8,7 +8,7 @@ import {
 import { PRINT_3D_STATUSES } from '@/constants/schedule';
 import { dbRepository } from '@/lib/storage/db';
 import { parseStlBuffer, validateStlFileName } from '@/lib/stl-parser';
-import { requireAdminSession } from '@/lib/auth';
+import { getAdminSessionFromRequest, requireAdminSession } from '@/lib/auth';
 import { googleBridge } from '@/lib/google/bridge';
 
 export async function GET(request: NextRequest) {
@@ -18,8 +18,12 @@ export async function GET(request: NextRequest) {
 
     const db = await dbRepository.getDatabase();
 
-    if (!query) {
-      return NextResponse.json({ results: db.prints });
+    if (!query || query.length < 3) {
+      const adminSession = getAdminSessionFromRequest(request);
+      if (adminSession) {
+        return NextResponse.json({ results: db.prints });
+      }
+      return NextResponse.json({ results: [] });
     }
 
     const filtered = db.prints.filter(

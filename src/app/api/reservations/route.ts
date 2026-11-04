@@ -5,6 +5,34 @@ import { TIME_BLOCK_MAP, getWeekDaysForOffset } from '@/constants/schedule';
 import { dbRepository } from '@/lib/storage/db';
 import { buildGoogleCalendarUrl, buildReservationCalendarDetails } from '@/lib/calendar/ics';
 import { googleBridge } from '@/lib/google/bridge';
+import { getAdminSessionFromRequest } from '@/lib/auth';
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get('query')?.trim().toLowerCase();
+
+    const db = await dbRepository.getDatabase();
+
+    if (!query) {
+      return NextResponse.json({ reservations: db.reservations });
+    }
+
+    const filtered = db.reservations.filter((r) => {
+      return (
+        r.code.toLowerCase().includes(query) ||
+        r.leadStudent.upnCode.toLowerCase().includes(query) ||
+        r.leadStudent.fullName.toLowerCase().includes(query) ||
+        r.participants?.some((p) => p.upnCode.toLowerCase().includes(query))
+      );
+    });
+
+    return NextResponse.json({ reservations: filtered });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error al consultar reservas';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -166,6 +194,8 @@ export async function POST(request: NextRequest) {
         career: payload.career.trim(),
         course: payload.course.trim(),
         nrc: payload.nrc.trim(),
+        teacherName: payload.teacherName?.trim() || undefined,
+        safetyProtocolConfirmed: Boolean(payload.safetyProtocolConfirmed),
         status: 'ACTIVA',
         createdAt: new Date().toISOString(),
         googleSynced: false,
@@ -198,41 +228,66 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get('id')?.trim();
+    const code = searchParams.get('code')?.trim();
+    const upnCode = searchParams.get('upnCode')?.trim().toUpperCase();
 
-    if (!id) {
+    if (!id && !code) {
       return NextResponse.json(
-        { error: 'El parámetro "id" es obligatorio para cancelar una reserva.' },
+        { error: 'Debe especificar el parámetro "id" o "code" para cancelar una reserva.' },
         { status: 400 }
       );
     }
 
+    const adminSession = getAdminSessionFromRequest(request);
+
     const cancelledReservation = await dbRepository.updateDatabase(async (db) => {
-      const reservation = db.reservations.find((r) => r.id === id);
-      if (!reservation) {
-        throw new Error('Reserva no encontrada.');
+      const target = db.reservations.find((r) => {
+        if (id && r.id === id) return true;
+        if (code && r.code.toUpperCase() === code.toUpperCase()) return true;
+        return false;
+      });
+
+      if (!target) {
+        const error = new Error('Reserva no encontrada.');
+        (error as any).status = 404;
+        throw error;
       }
-      reservation.status = 'CANCELADA';
+
+      if (code && !adminSession) {
+        if (upnCode && upnCode !== target.leadStudent.upnCode.trim().toUpperCase()) {
+          const error = new Error('El Código UPN ingresado no coincide con el estudiante responsable de esta reserva.');
+          (error as any).status = 403;
+          throw error;
+        }
+      }
+
+      target.status = 'CANCELADA';
 
       // Si la reserva proviene de una asesoría, cancelar también la asesoría vinculada
-      if (reservation.linkedAdvisoryId) {
+      if (target.linkedAdvisoryId) {
         const linkedAdvisory = db.advisories.find(
-          (a) => a.id === reservation.linkedAdvisoryId
+          (a) => a.id === target.linkedAdvisoryId
         );
         if (linkedAdvisory) {
           linkedAdvisory.status = 'CANCELADA';
         }
       }
 
-      return reservation;
+      return target;
     });
 
     // Notificar cancelación a Google Sheets si aplica
     googleBridge.syncReservation(cancelledReservation, 'CANCEL');
 
-    return NextResponse.json({ ok: true, message: 'Reserva cancelada correctamente.' });
+    return NextResponse.json({
+      ok: true,
+      reservation: cancelledReservation,
+      message: 'Reserva cancelada correctamente.',
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error al cancelar la reserva';
-    return NextResponse.json({ error: message }, { status: 400 });
+    const status = (error as { status?: number })?.status || 400;
+    return NextResponse.json({ error: message }, { status });
   }
 }

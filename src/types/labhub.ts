@@ -85,6 +85,8 @@ export interface LabReservation {
   career: string;
   course: string;
   nrc: string;
+  teacherName?: string;
+  safetyProtocolConfirmed?: boolean;
   status: ReservationStatus;
   createdAt: string;
   calendarEventUrl?: string;
@@ -101,6 +103,8 @@ export interface CreateLabReservationPayload {
   career: string;
   course: string;
   nrc: string;
+  teacherName?: string;
+  safetyProtocolConfirmed?: boolean;
 }
 
 export type LabSlotState =
@@ -263,7 +267,15 @@ export interface AdvisorWeeklyScheduleResponse {
 // ----------------------------------------------------------------------------
 // MÓDULO 3: PRÉSTAMO DE EQUIPOS ("ENTREGA DE MATERIALES Y/O EQUIPOS")
 // ----------------------------------------------------------------------------
-export type EquipmentLoanStatus = 'PENDIENTE' | 'ENTREGADO';
+export type EquipmentLoanStatus = 'PENDIENTE' | 'EN_USO' | 'ENTREGADO' | 'DEVUELTO';
+
+export interface LabEquipmentCatalogItem {
+  name: string;
+  brand?: string;
+  model?: string;
+  totalUnits: number;
+  sampleCodes: string[];
+}
 
 export interface EquipmentLoanItem {
   quantity: number;
@@ -292,6 +304,8 @@ export interface EquipmentLoan {
   signatureDataUrl: string; // PNG Base64 de la firma digital
   status: EquipmentLoanStatus;
   createdAt: string;
+  handedOutAt?: string;
+  handedOutByAdmin?: string;
   deliveredAt?: string;
   deliveredByAdmin?: string;
   adminNotes?: string;

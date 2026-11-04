@@ -64,6 +64,27 @@ export const apiClient = {
       body: JSON.stringify(payload),
     }),
 
+  searchStudentReservations: (query: string) =>
+    requestJson<{ reservations: LabReservation[] }>(
+      `/api/reservations?query=${encodeURIComponent(query.trim())}`
+    ),
+
+  cancelStudentReservation: (codeOrId: string, upnCode?: string) => {
+    const params = new URLSearchParams();
+    if (codeOrId.startsWith('RES-')) {
+      params.set('code', codeOrId.trim());
+    } else {
+      params.set('id', codeOrId.trim());
+    }
+    if (upnCode) {
+      params.set('upnCode', upnCode.trim().toUpperCase());
+    }
+    return requestJson<{ ok: boolean; message?: string }>(
+      `/api/reservations?${params.toString()}`,
+      { method: 'DELETE' }
+    );
+  },
+
   // Módulo 2: Solicitud de Asesorías
   getAdvisorSchedule: (advisorId: string, weekOffset: 0 | 1) =>
     requestJson<AdvisorWeeklyScheduleResponse>(

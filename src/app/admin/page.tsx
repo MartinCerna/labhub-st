@@ -1,10 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AdminDashboardSummary,
   AdminSessionUser,
+  Print3DRequest,
+  LabReservation,
+  EquipmentLoan,
+  AdvisoryRequest,
 } from '@/types/labhub';
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/shared/ToastProvider';
@@ -24,6 +28,8 @@ import {
   RefreshCw,
   AlertCircle,
   ExternalLink,
+  Search,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -44,6 +50,159 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // M13: Buscador Global Rápido en el Panel Admin
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  interface GlobalSearchResultItem {
+    id: string;
+    code: string;
+    category: 'Préstamos de Equipos' | 'Impresión 3D' | 'Asesorías Especializadas' | 'Reservas de Laboratorio';
+    tab: TabKey;
+    title: string;
+    subtitle: string;
+    upnCode?: string;
+    badgeText: string;
+    badgeColor: string;
+    prefix: 'EQP' | '3DP' | 'ASE' | 'RES';
+  }
+
+  // Cerrar búsqueda con Escape o clic fuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchFocused(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsSearchFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // M13: Cálculo de resultados en tiempo real cuando la búsqueda tiene al menos 2 caracteres
+  const searchResults = useMemo(() => {
+    if (!dashboard || globalSearchQuery.trim().length < 2) return [];
+
+    const q = globalSearchQuery.trim().toLowerCase();
+    const items: GlobalSearchResultItem[] = [];
+
+    // 1. Préstamos de Equipos (EQP)
+    (dashboard.loans || []).forEach((loan) => {
+      const matchCode = loan.code?.toLowerCase().includes(q);
+      const matchName = loan.responsibleName?.toLowerCase().includes(q);
+      const matchUpn = loan.responsibleUpnCode?.toLowerCase().includes(q);
+      const matchCourse = loan.courseProgram?.toLowerCase().includes(q);
+      const matchEquip = loan.items?.some((it) => it.equipmentName?.toLowerCase().includes(q));
+
+      if (matchCode || matchName || matchUpn || matchCourse || matchEquip) {
+        items.push({
+          id: loan.id,
+          code: loan.code,
+          category: 'Préstamos de Equipos',
+          tab: 'loans',
+          title: loan.responsibleName,
+          subtitle: `${loan.courseProgram} • ${loan.items.length} equipo(s)`,
+          upnCode: loan.responsibleUpnCode,
+          badgeText: loan.status === 'EN_USO' ? 'EN PRÉSTAMO' : loan.status === 'PENDIENTE' ? 'PENDIENTE' : 'DEVUELTO',
+          badgeColor: loan.status === 'EN_USO' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300' : loan.status === 'PENDIENTE' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+          prefix: 'EQP',
+        });
+      }
+    });
+
+    // 2. Impresión 3D (3DP)
+    const prints = ((dashboard as any).prints || dashboard.printRequests || []) as Print3DRequest[];
+    prints.forEach((print) => {
+      const matchCode = print.code?.toLowerCase().includes(q);
+      const matchName = print.studentFullName?.toLowerCase().includes(q);
+      const matchUpn = print.upnCode?.toLowerCase().includes(q);
+      const matchCourse = print.course?.toLowerCase().includes(q);
+
+      if (matchCode || matchName || matchUpn || matchCourse) {
+        items.push({
+          id: print.id,
+          code: print.code,
+          category: 'Impresión 3D',
+          tab: 'prints',
+          title: print.studentFullName,
+          subtitle: `${print.course} • ${print.files?.length || 1} archivo(s) .stl`,
+          upnCode: print.upnCode,
+          badgeText: print.status,
+          badgeColor: print.status === 'OBSERVADO' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : print.status === 'ENTREGADA' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300',
+          prefix: '3DP',
+        });
+      }
+    });
+
+    // 3. Asesorías Especializadas (ASE)
+    (dashboard.advisories || []).forEach((adv) => {
+      const matchCode = adv.code?.toLowerCase().includes(q);
+      const matchProject = adv.projectName?.toLowerCase().includes(q);
+      const matchCourse = adv.course?.toLowerCase().includes(q);
+      const matchStudent = adv.students?.some(
+        (s) => s.fullName?.toLowerCase().includes(q) || s.upnCode?.toLowerCase().includes(q)
+      );
+
+      if (matchCode || matchProject || matchCourse || matchStudent) {
+        const lead = adv.students?.[0];
+        items.push({
+          id: adv.id,
+          code: adv.code,
+          category: 'Asesorías Especializadas',
+          tab: 'advisories',
+          title: lead ? `${lead.fullName} (${lead.upnCode})` : adv.projectName,
+          subtitle: `${adv.course} • ${adv.projectName}`,
+          upnCode: lead?.upnCode,
+          badgeText: adv.status,
+          badgeColor: adv.status === 'PROGRAMADA' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300' : adv.status === 'ATENDIDA' ? 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300' : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
+          prefix: 'ASE',
+        });
+      }
+    });
+
+    // 4. Reservas de Laboratorio (RES)
+    const reservations = ((dashboard as any).reservations || dashboard.recentReservations || []) as LabReservation[];
+    reservations.forEach((res) => {
+      const matchCode = res.code?.toLowerCase().includes(q);
+      const matchLead = res.leadStudent?.fullName?.toLowerCase().includes(q) || res.leadStudent?.upnCode?.toLowerCase().includes(q);
+      const matchCourse = res.course?.toLowerCase().includes(q);
+      const matchProject = res.projectName?.toLowerCase().includes(q);
+
+      if (matchCode || matchLead || matchCourse || matchProject) {
+        items.push({
+          id: res.id,
+          code: res.code,
+          category: 'Reservas de Laboratorio',
+          tab: 'labs',
+          title: res.leadStudent ? `${res.leadStudent.fullName} (${res.leadStudent.upnCode})` : res.projectName,
+          subtitle: `${res.course} • ${res.projectName}`,
+          upnCode: res.leadStudent?.upnCode,
+          badgeText: res.status,
+          badgeColor: res.status === 'ACTIVA' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+          prefix: 'RES',
+        });
+      }
+    });
+
+    return items.slice(0, 12);
+  }, [dashboard, globalSearchQuery]);
+
+  const handleSelectSearchResult = (item: GlobalSearchResultItem) => {
+    setActiveTab(item.tab);
+    setGlobalSearchQuery('');
+    setIsSearchFocused(false);
+    showToast(`Navegando a ${item.category} (${item.code})...`, 'info');
+  };
 
   // Cargar dashboard
   const loadDashboard = useCallback(async (isRefresh = false) => {
@@ -146,7 +305,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 pb-20">
       {/* BARRA SUPERIOR DE CABECERA ADMINISTRATIVA */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           {/* Logo y Rol */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 text-white flex items-center justify-center shadow-xs">
@@ -169,6 +328,82 @@ export default function AdminPage() {
                 Sesión activa: <strong className="text-slate-700 dark:text-slate-300">{currentUser.fullName}</strong> ({currentUser.username})
               </p>
             </div>
+          </div>
+
+          {/* M13: Buscador Global Rápido en el Panel Admin */}
+          <div ref={searchContainerRef} className="relative flex-1 max-w-md w-full my-1 md:my-0 mx-0 md:mx-4">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={globalSearchQuery}
+                onChange={(e) => {
+                  setGlobalSearchQuery(e.target.value);
+                  setIsSearchFocused(true);
+                }}
+                onFocus={() => setIsSearchFocused(true)}
+                placeholder="Buscar alumno, código UPN o ticket (RES / 3DP / EQP / ASE)..."
+                className="w-full pl-9 pr-8 py-2 bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+              />
+              {globalSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGlobalSearchQuery('');
+                    setIsSearchFocused(false);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Panel Flotante Desplegable de Resultados */}
+            {isSearchFocused && globalSearchQuery.trim().length >= 2 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-2 z-50 max-h-96 overflow-y-auto animate-in fade-in zoom-in-95">
+                <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span>Coincidencias en Vivo ({searchResults.length})</span>
+                  <span className="text-[10px] text-slate-400">ESC para cerrar</span>
+                </div>
+
+                {searchResults.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-400">
+                    No se encontraron registros para &quot;{globalSearchQuery}&quot;
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                    {searchResults.map((item) => (
+                      <button
+                        key={`${item.prefix}-${item.id}`}
+                        type="button"
+                        onClick={() => handleSelectSearchResult(item)}
+                        className="w-full text-left p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl transition-colors flex items-center justify-between gap-3 cursor-pointer group"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700">
+                              {item.code}
+                            </span>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                              {item.title}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                            <strong className="text-slate-600 dark:text-slate-400">{item.category}</strong> • {item.subtitle}
+                          </p>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${item.badgeColor}`}
+                        >
+                          {item.badgeText}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Botones de acción del header */}
