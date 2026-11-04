@@ -50,6 +50,7 @@ import { AdminSessionUser, AdvisoryRequest, LabReservation } from '@/types/labhu
 
 // Route Handlers
 import { GET as getCatalog } from '@/app/api/catalog/route';
+import { GET as getLabSchedule } from '@/app/api/labs/schedule/route';
 import { POST as postAdvisory } from '@/app/api/advisories/route';
 import { GET as getLoans, POST as postLoan, PATCH as patchLoan } from '@/app/api/loans/route';
 import { GET as getPrints, POST as postPrint, PATCH as patchPrint } from '@/app/api/prints/route';
@@ -545,6 +546,27 @@ endsolid test_cube`;
 
       expect(json.teachers.length).toBeGreaterThan(0);
       expect(json.teachers).toContain('Ing. Carlos Alberto Mendoza Ríos');
+    });
+
+    it('GET /api/labs/schedule debe retornar CLASE para los horarios ocupados del laboratorio', async () => {
+      // Semana próxima (weekOffset=1)
+      const nextWeek = getWeekDaysForOffset(1);
+      const monday = nextWeek.days[0].date;
+      const req = new NextRequest('http://localhost:3000/api/labs/schedule?labId=automatizacion&weekOffset=1');
+      const response = await getLabSchedule(req);
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      expect(json.lab.id).toBe('automatizacion');
+      expect(json.slots.length).toBeGreaterThan(0);
+
+      // En Automatización B-210, Lunes B2 (09:10 - 10:40) debe ser CLASE
+      const mondayB2 = json.slots.find((s: any) => s.date === monday && s.blockId === 'B2');
+      expect(mondayB2).toBeDefined();
+      expect(mondayB2.state).toBe('CLASE');
+      expect(mondayB2.classInfo.courseName).toBe('Ingeniería Eléctrica y Automatización');
+      expect(mondayB2.classInfo.teacherName).toBe('León León Ryan Abraham');
+      expect(mondayB2.classInfo.nrc).toBe('21317');
     });
 
     it('POST /api/advisories debe rechazar peticiones con campos obligatorios faltantes', async () => {

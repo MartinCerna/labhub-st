@@ -945,7 +945,10 @@ export const dbRepository = {
       const merged: LabHubDatabase = {
         labs: Array.isArray(remoteDb.labs) && remoteDb.labs.length > 0 ? remoteDb.labs : current.labs,
         advisors: Array.isArray(remoteDb.advisors) && remoteDb.advisors.length > 0 ? remoteDb.advisors : current.advisors,
-        recurringClasses: Array.isArray(remoteDb.recurringClasses) ? remoteDb.recurringClasses : current.recurringClasses,
+        recurringClasses:
+          Array.isArray(remoteDb.recurringClasses) && remoteDb.recurringClasses.length >= current.recurringClasses.length
+            ? remoteDb.recurringClasses
+            : current.recurringClasses,
         slotBlocks: Array.isArray(remoteDb.slotBlocks) ? remoteDb.slotBlocks : current.slotBlocks,
         reservations: Array.isArray(remoteDb.reservations) ? remoteDb.reservations : current.reservations,
         advisories: Array.isArray(remoteDb.advisories) ? remoteDb.advisories : current.advisories,
