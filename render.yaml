@@ -6,7 +6,7 @@ services:
     region: oregon
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start
-    healthCheckPath: /api/bootstrap
+    healthCheckPath: /
     envVars:
       - key: NODE_VERSION
         value: 22.13.0
