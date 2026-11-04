@@ -571,7 +571,7 @@ endsolid test_cube`;
         body: JSON.stringify({
           advisorId: 'adv-1',
           date: '2020-01-01', // Fecha pasada muy lejana
-          blockIds: ['B2'],
+          blockIds: ['B4'],
           projectName: 'Proyecto Fuera de Plazo',
           course: 'Control',
           nrc: '4512',
@@ -587,14 +587,14 @@ endsolid test_cube`;
 
     it('POST /api/advisories debe registrar asesoría y crear su reserva vinculada con origin: ASESORIA', async () => {
       // Elegimos el lunes de la próxima semana (weekOffset = 1, day 0)
-      // En la semilla, adv-1 atiende los Lunes (day 1) en B2 y B3 en lab 'automatizacion'
+      // En la semilla, adv-1 atiende los Lunes (day 1) en B4 en lab 'automatizacion'
       const nextWeek = getWeekDaysForOffset(1);
       const targetDate = nextWeek.days[0].date; // Próximo lunes
 
       const advisoryPayload = {
         advisorId: 'adv-1',
         date: targetDate,
-        blockIds: ['B2'],
+        blockIds: ['B4'],
         projectName: 'Sintonización PID para Banda Transportadora',
         course: 'Automatización Industrial',
         nrc: '4512',

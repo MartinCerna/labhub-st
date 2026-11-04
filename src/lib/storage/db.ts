@@ -249,10 +249,10 @@ function buildInitialDatabase(): LabHubDatabase {
       badgeColor: '#d97706',
       active: true,
       weeklyAvailability: [
-        { dayOfWeek: 1, blockId: 'B2', labId: 'automatizacion' },
-        { dayOfWeek: 1, blockId: 'B3', labId: 'automatizacion' },
-        { dayOfWeek: 3, blockId: 'B5', labId: 'automatizacion' },
-        { dayOfWeek: 3, blockId: 'B6', labId: 'automatizacion' },
+        { dayOfWeek: 1, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 1, blockId: 'B7', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B7', labId: 'automatizacion' },
         { dayOfWeek: 5, blockId: 'B3', labId: 'automatizacion' },
       ],
     },
@@ -274,11 +274,11 @@ function buildInitialDatabase(): LabHubDatabase {
       badgeColor: '#0284c7',
       active: true,
       weeklyAvailability: [
-        { dayOfWeek: 2, blockId: 'B3', labId: 'electronica' },
-        { dayOfWeek: 2, blockId: 'B4', labId: 'electronica' },
-        { dayOfWeek: 4, blockId: 'B5', labId: 'electronica' },
-        { dayOfWeek: 4, blockId: 'B6', labId: 'electronica' },
-        { dayOfWeek: 6, blockId: 'B2', labId: 'electronica' },
+        { dayOfWeek: 1, blockId: 'B1', labId: 'electronica' },
+        { dayOfWeek: 1, blockId: 'B3', labId: 'electronica' },
+        { dayOfWeek: 3, blockId: 'B1', labId: 'electronica' },
+        { dayOfWeek: 5, blockId: 'B7', labId: 'electronica' },
+        { dayOfWeek: 5, blockId: 'B9', labId: 'electronica' },
       ],
     },
     {
@@ -299,10 +299,11 @@ function buildInitialDatabase(): LabHubDatabase {
       badgeColor: '#059669',
       active: true,
       weeklyAvailability: [
+        { dayOfWeek: 2, blockId: 'B4', labId: 'mecatronica' },
         { dayOfWeek: 3, blockId: 'B2', labId: 'mecatronica' },
-        { dayOfWeek: 3, blockId: 'B3', labId: 'mecatronica' },
+        { dayOfWeek: 4, blockId: 'B5', labId: 'mecatronica' },
+        { dayOfWeek: 4, blockId: 'B6', labId: 'mecatronica' },
         { dayOfWeek: 5, blockId: 'B5', labId: 'mecatronica' },
-        { dayOfWeek: 5, blockId: 'B6', labId: 'mecatronica' },
       ],
     },
     {
@@ -323,69 +324,145 @@ function buildInitialDatabase(): LabHubDatabase {
       badgeColor: '#7c3aed',
       active: true,
       weeklyAvailability: [
-        { dayOfWeek: 1, blockId: 'B6', labId: 'mecatronica' },
-        { dayOfWeek: 1, blockId: 'B7', labId: 'mecatronica' },
-        { dayOfWeek: 4, blockId: 'B3', labId: 'automatizacion' },
-        { dayOfWeek: 4, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 4, blockId: 'B4', labId: 'mecatronica' },
+        { dayOfWeek: 5, blockId: 'B1', labId: 'mecatronica' },
+        { dayOfWeek: 5, blockId: 'B5', labId: 'automatizacion' },
+        { dayOfWeek: 5, blockId: 'B6', labId: 'automatizacion' },
+        { dayOfWeek: 6, blockId: 'B2', labId: 'mecatronica' },
       ],
     },
   ];
 
   const recurringClasses: RecurringClassSlot[] = [
-    {
-      id: 'class-aut-1',
-      labId: 'automatizacion',
-      dayOfWeek: 2,
-      blockId: 'B1',
-      courseName: 'Sistemas de Control Automático I',
-      teacherName: 'Ing. Carlos Alberto Mendoza Ríos',
-      nrc: '4512',
-    },
-    {
-      id: 'class-aut-2',
-      labId: 'automatizacion',
-      dayOfWeek: 4,
-      blockId: 'B7',
-      courseName: 'Redes Industriales y SCADA',
-      teacherName: 'Mg. Roberto Javier Paredes Luna',
-      nrc: '4518',
-    },
-    {
-      id: 'class-ele-1',
-      labId: 'electronica',
-      dayOfWeek: 1,
-      blockId: 'B4',
-      courseName: 'Circuitos Electrónicos II',
-      teacherName: 'Dra. Elena Patricia Vargas Soto',
-      nrc: '3205',
-    },
-    {
-      id: 'class-ele-2',
-      labId: 'electronica',
-      dayOfWeek: 3,
-      blockId: 'B8',
-      courseName: 'Sistemas Digitales Embebidos',
-      teacherName: 'Ing. Luis Fernando Quispe Huamán',
-      nrc: '3210',
-    },
-    {
-      id: 'class-mec-1',
-      labId: 'mecatronica',
-      dayOfWeek: 2,
-      blockId: 'B5',
-      courseName: 'Robótica Industrial y Móvil',
-      teacherName: 'Dr. Marco Antonio Villanueva Castro',
-      nrc: '5840',
-    },
-    {
-      id: 'class-mec-2',
-      labId: 'mecatronica',
-      dayOfWeek: 5,
-      blockId: 'B2',
-      courseName: 'Manufactura Asistida por Computadora (CAM)',
-      teacherName: 'Mg. Diana Carolina Salazar Torres',
-      nrc: '5844',
-    },
+    // ==========================================
+    // LABORATORIO DE MECATRÓNICA A-207
+    // ==========================================
+    // Lunes (1)
+    { id: 'class-mec-1', labId: 'mecatronica', dayOfWeek: 1, blockId: 'B1', courseName: 'Circuitos Eléctricos 2', teacherName: 'Saldaña Milla Fernando Aristides', nrc: '21251' },
+    { id: 'class-mec-2', labId: 'mecatronica', dayOfWeek: 1, blockId: 'B2', courseName: 'Circuitos Eléctricos 2', teacherName: 'Saldaña Milla Fernando Aristides', nrc: '21251' },
+    { id: 'class-mec-3', labId: 'mecatronica', dayOfWeek: 1, blockId: 'B3', courseName: 'Manufactura Asistida por Computadora', teacherName: 'Alayo Miguel Raul Fernando', nrc: '26818' },
+    { id: 'class-mec-4', labId: 'mecatronica', dayOfWeek: 1, blockId: 'B4', courseName: 'Manufactura Asistida por Computadora', teacherName: 'Alayo Miguel Raul Fernando', nrc: '26818' },
+    { id: 'class-mec-5', labId: 'mecatronica', dayOfWeek: 1, blockId: 'B5', courseName: 'Circuitos Eléctricos', teacherName: 'Saldaña Milla Fernando Aristides', nrc: '21258' },
+    { id: 'class-mec-6', labId: 'mecatronica', dayOfWeek: 1, blockId: 'B6', courseName: 'Circuitos Eléctricos', teacherName: 'Saldaña Milla Fernando Aristides', nrc: '21258' },
+    { id: 'class-mec-7', labId: 'mecatronica', dayOfWeek: 1, blockId: 'B7', courseName: 'Circuitos y Sistemas Digitales', teacherName: 'Araujo Castillo Lenin', nrc: '65500' },
+    { id: 'class-mec-8', labId: 'mecatronica', dayOfWeek: 1, blockId: 'B8', courseName: 'Circuitos y Sistemas Digitales', teacherName: 'Araujo Castillo Lenin', nrc: '65500' },
+    // Martes (2)
+    { id: 'class-mec-9', labId: 'mecatronica', dayOfWeek: 2, blockId: 'B2', courseName: 'Circuitos Eléctricos', teacherName: 'Saldaña Milla Fernando Aristides', nrc: '21259' },
+    { id: 'class-mec-10', labId: 'mecatronica', dayOfWeek: 2, blockId: 'B3', courseName: 'Circuitos Eléctricos', teacherName: 'Saldaña Milla Fernando Aristides', nrc: '21259' },
+    { id: 'class-mec-11', labId: 'mecatronica', dayOfWeek: 2, blockId: 'B5', courseName: 'Procesamiento de Señales', teacherName: 'Gutierrez Magan Luis Mauricio', nrc: '21286' },
+    { id: 'class-mec-12', labId: 'mecatronica', dayOfWeek: 2, blockId: 'B6', courseName: 'Circuitos Eléctricos', teacherName: 'Saldaña Milla Fernando Aristides', nrc: '21260' },
+    { id: 'class-mec-13', labId: 'mecatronica', dayOfWeek: 2, blockId: 'B7', courseName: 'Circuitos Eléctricos', teacherName: 'Saldaña Milla Fernando Aristides', nrc: '21260' },
+    { id: 'class-mec-14', labId: 'mecatronica', dayOfWeek: 2, blockId: 'B8', courseName: 'Ingeniería de Control', teacherName: 'Romero Alvarado Juan Alfredo', nrc: '28570' },
+    // Miércoles (3)
+    { id: 'class-mec-15', labId: 'mecatronica', dayOfWeek: 3, blockId: 'B1', courseName: 'Máquinas Eléctricas', teacherName: 'León Cruz Kelly Lidia', nrc: '21251' },
+    { id: 'class-mec-16', labId: 'mecatronica', dayOfWeek: 3, blockId: 'B3', courseName: 'Máquinas Eléctricas', teacherName: 'León Cruz Kelly Lidia', nrc: '21282' },
+    { id: 'class-mec-17', labId: 'mecatronica', dayOfWeek: 3, blockId: 'B4', courseName: 'Máquinas Eléctricas', teacherName: 'León Cruz Kelly Lidia', nrc: '28549' },
+    { id: 'class-mec-18', labId: 'mecatronica', dayOfWeek: 3, blockId: 'B5', courseName: 'Manufactura Asistida por Computadora', teacherName: 'Alayo Miguel Raul Fernando', nrc: '26816' },
+    { id: 'class-mec-19', labId: 'mecatronica', dayOfWeek: 3, blockId: 'B6', courseName: 'Manufactura Asistida por Computadora', teacherName: 'Alayo Miguel Raul Fernando', nrc: '26816' },
+    { id: 'class-mec-20', labId: 'mecatronica', dayOfWeek: 3, blockId: 'B7', courseName: 'Manufactura Asistida por Computadora', teacherName: 'Alayo Miguel Raul Fernando', nrc: '26817' },
+    { id: 'class-mec-21', labId: 'mecatronica', dayOfWeek: 3, blockId: 'B8', courseName: 'Manufactura Asistida por Computadora', teacherName: 'Alayo Miguel Raul Fernando', nrc: '26817' },
+    // Jueves (4)
+    { id: 'class-mec-22', labId: 'mecatronica', dayOfWeek: 4, blockId: 'B2', courseName: 'Introducción a la Ingeniería Mecatrónica', teacherName: 'Rodriguez Ochoa Jairo Javier', nrc: '65257' },
+    { id: 'class-mec-23', labId: 'mecatronica', dayOfWeek: 4, blockId: 'B3', courseName: 'Introducción a la Ingeniería Mecatrónica', teacherName: 'Rodriguez Ochoa Jairo Javier', nrc: '63872' },
+    { id: 'class-mec-24', labId: 'mecatronica', dayOfWeek: 4, blockId: 'B7', courseName: 'Ingeniería de Control', teacherName: 'Manzano Ramos Edgar Andre', nrc: '21291' },
+    // Viernes (5)
+    { id: 'class-mec-25', labId: 'mecatronica', dayOfWeek: 5, blockId: 'B2', courseName: 'Procesamiento de Señales', teacherName: 'Gutierrez Magan Luis Mauricio', nrc: '21285' },
+    { id: 'class-mec-26', labId: 'mecatronica', dayOfWeek: 5, blockId: 'B3', courseName: 'Procesamiento de Señales', teacherName: 'Gutierrez Magan Luis Mauricio', nrc: '21285' },
+    { id: 'class-mec-27', labId: 'mecatronica', dayOfWeek: 5, blockId: 'B4', courseName: 'Procesamiento de Señales', teacherName: 'Gutierrez Magan Luis Mauricio', nrc: '21289' },
+    { id: 'class-mec-28', labId: 'mecatronica', dayOfWeek: 5, blockId: 'B7', courseName: 'Circuitos y Sistemas Digitales', teacherName: 'Araujo Castillo Lenin', nrc: '28543' },
+    { id: 'class-mec-29', labId: 'mecatronica', dayOfWeek: 5, blockId: 'B8', courseName: 'Circuitos y Sistemas Digitales', teacherName: 'Araujo Castillo Lenin', nrc: '28543' },
+
+    // ==========================================
+    // LABORATORIO DE AUTOMATIZACIÓN B-210
+    // ==========================================
+    // Lunes (1)
+    { id: 'class-aut-1', labId: 'automatizacion', dayOfWeek: 1, blockId: 'B2', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'León León Ryan Abraham', nrc: '21317' },
+    { id: 'class-aut-2', labId: 'automatizacion', dayOfWeek: 1, blockId: 'B3', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'León León Ryan Abraham', nrc: '21318' },
+    { id: 'class-aut-3', labId: 'automatizacion', dayOfWeek: 1, blockId: 'B5', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'León León Ryan Abraham', nrc: '21319' },
+    { id: 'class-aut-4', labId: 'automatizacion', dayOfWeek: 1, blockId: 'B6', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'León León Ryan Abraham', nrc: '21320' },
+    // Martes (2)
+    { id: 'class-aut-5', labId: 'automatizacion', dayOfWeek: 2, blockId: 'B1', courseName: 'Electrohidráulica y Electroneumática', teacherName: 'Paredes Corcuera Edwin Danilo', nrc: '26822' },
+    { id: 'class-aut-6', labId: 'automatizacion', dayOfWeek: 2, blockId: 'B4', courseName: 'Instrumentación Industrial', teacherName: 'Grijalba Mauricio Jean Marco', nrc: '21311' },
+    { id: 'class-aut-7', labId: 'automatizacion', dayOfWeek: 2, blockId: 'B5', courseName: 'Arquitectura del Computador', teacherName: 'Peralta Lujan Jose Luis', nrc: '21447' },
+    { id: 'class-aut-8', labId: 'automatizacion', dayOfWeek: 2, blockId: 'B6', courseName: 'Arquitectura del Computador', teacherName: 'Peralta Lujan Jose Luis', nrc: '21448' },
+    { id: 'class-aut-9', labId: 'automatizacion', dayOfWeek: 2, blockId: 'B8', courseName: 'Ingeniería de Control 2', teacherName: 'Mendoza Chomba Jorge Esteban', nrc: '25365' },
+    { id: 'class-aut-10', labId: 'automatizacion', dayOfWeek: 2, blockId: 'B9', courseName: 'Ingeniería de Control 2', teacherName: 'Mendoza Chomba Jorge Esteban', nrc: '25365' },
+    // Miércoles (3)
+    { id: 'class-aut-11', labId: 'automatizacion', dayOfWeek: 3, blockId: 'B2', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'León León Ryan Abraham', nrc: '25161' },
+    { id: 'class-aut-12', labId: 'automatizacion', dayOfWeek: 3, blockId: 'B3', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'León León Ryan Abraham', nrc: '25162' },
+    { id: 'class-aut-13', labId: 'automatizacion', dayOfWeek: 3, blockId: 'B5', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'León León Ryan Abraham', nrc: '25163' },
+    { id: 'class-aut-14', labId: 'automatizacion', dayOfWeek: 3, blockId: 'B6', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'León León Ryan Abraham', nrc: '25164' },
+    { id: 'class-aut-15', labId: 'automatizacion', dayOfWeek: 3, blockId: 'B8', courseName: 'Electrónica Digital', teacherName: 'Valqui Sipiran Alexanders', nrc: '21407' },
+    // Jueves (4)
+    { id: 'class-aut-16', labId: 'automatizacion', dayOfWeek: 4, blockId: 'B2', courseName: 'Ingeniería de Procesos Industriales', teacherName: 'Romero Alvarado Juan Alfredo', nrc: '25367' },
+    { id: 'class-aut-17', labId: 'automatizacion', dayOfWeek: 4, blockId: 'B3', courseName: 'Ingeniería de Procesos Industriales', teacherName: 'Romero Alvarado Juan Alfredo', nrc: '25367' },
+    { id: 'class-aut-18', labId: 'automatizacion', dayOfWeek: 4, blockId: 'B5', courseName: 'Electrohidráulica y Electroneumática', teacherName: 'Paredes Corcuera Edwin Danilo', nrc: '26820' },
+    { id: 'class-aut-19', labId: 'automatizacion', dayOfWeek: 4, blockId: 'B6', courseName: 'Electrohidráulica y Electroneumática', teacherName: 'Paredes Corcuera Edwin Danilo', nrc: '26821' },
+    // Viernes (5)
+    { id: 'class-aut-20', labId: 'automatizacion', dayOfWeek: 5, blockId: 'B9', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'De La Cruz Rodriguez Oscar Miguel', nrc: '21165' },
+    // Sábado (6)
+    { id: 'class-aut-21', labId: 'automatizacion', dayOfWeek: 6, blockId: 'B7', courseName: 'Taller de Robótica', teacherName: 'Valqui Sipiran Alexanders', nrc: '6723' },
+    // Domingo (7)
+    { id: 'class-aut-22', labId: 'automatizacion', dayOfWeek: 7, blockId: 'B1', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'De La Cruz Rodriguez Oscar Miguel', nrc: '6678' },
+    { id: 'class-aut-23', labId: 'automatizacion', dayOfWeek: 7, blockId: 'B2', courseName: 'Ingeniería Eléctrica y Automatización', teacherName: 'De La Cruz Rodriguez Oscar Miguel', nrc: '6678' },
+
+    // ==========================================
+    // LABORATORIO DE ELECTRÓNICA B-209
+    // ==========================================
+    // Lunes (1)
+    { id: 'class-ele-1', labId: 'electronica', dayOfWeek: 1, blockId: 'B2', courseName: 'Introducción a la Ingeniería Electrónica', teacherName: 'León Cruz Kelly Lidia', nrc: '23521' },
+    { id: 'class-ele-2', labId: 'electronica', dayOfWeek: 1, blockId: 'B4', courseName: 'Electrónica Digital', teacherName: 'Alfaro Bazan Pablo Martin', nrc: '26777' },
+    { id: 'class-ele-3', labId: 'electronica', dayOfWeek: 1, blockId: 'B5', courseName: 'Arquitectura del Computador', teacherName: 'Peralta Lujan Jose Luis', nrc: '21446' },
+    { id: 'class-ele-4', labId: 'electronica', dayOfWeek: 1, blockId: 'B6', courseName: 'Arquitectura del Computador', teacherName: 'Peralta Lujan Jose Luis', nrc: '21451' },
+    { id: 'class-ele-5', labId: 'electronica', dayOfWeek: 1, blockId: 'B7', courseName: 'Ingeniería de Control', teacherName: 'Manzano Ramos Edgar Andre', nrc: '21289' },
+    { id: 'class-ele-6', labId: 'electronica', dayOfWeek: 1, blockId: 'B8', courseName: 'Electrónica Digital', teacherName: 'Valqui Sipiran Alexanders', nrc: '21405' },
+    { id: 'class-ele-7', labId: 'electronica', dayOfWeek: 1, blockId: 'B9', courseName: 'Electrónica Digital', teacherName: 'Valqui Sipiran Alexanders', nrc: '21406' },
+    // Martes (2)
+    { id: 'class-ele-8', labId: 'electronica', dayOfWeek: 2, blockId: 'B1', courseName: 'Electrónica Digital', teacherName: 'Alfaro Bazan Pablo Martin', nrc: '26777' },
+    { id: 'class-ele-9', labId: 'electronica', dayOfWeek: 2, blockId: 'B2', courseName: 'Taller de Robótica', teacherName: 'Leon Soto Juan Carlos', nrc: '23463' },
+    { id: 'class-ele-10', labId: 'electronica', dayOfWeek: 2, blockId: 'B3', courseName: 'Taller de Robótica', teacherName: 'Leon Soto Juan Carlos', nrc: '23464' },
+    { id: 'class-ele-11', labId: 'electronica', dayOfWeek: 2, blockId: 'B4', courseName: 'Electrónica Digital', teacherName: 'Gomez Montes Juan Daniel', nrc: '69101' },
+    { id: 'class-ele-12', labId: 'electronica', dayOfWeek: 2, blockId: 'B5', courseName: 'Microprocesadores y Microcontroladores', teacherName: 'Mendoza Chomba Jorge Esteban', nrc: '26812' },
+    { id: 'class-ele-13', labId: 'electronica', dayOfWeek: 2, blockId: 'B6', courseName: 'Microprocesadores y Microcontroladores', teacherName: 'Mendoza Chomba Jorge Esteban', nrc: '26813' },
+    { id: 'class-ele-14', labId: 'electronica', dayOfWeek: 2, blockId: 'B7', courseName: 'Arquitectura del Computador', teacherName: 'Peralta Lujan Jose Luis', nrc: '21449' },
+    { id: 'class-ele-15', labId: 'electronica', dayOfWeek: 2, blockId: 'B8', courseName: 'Arquitectura del Computador', teacherName: 'Peralta Lujan Jose Luis', nrc: '21450' },
+    { id: 'class-ele-16', labId: 'electronica', dayOfWeek: 2, blockId: 'B9', courseName: 'Arquitectura del Computador', teacherName: 'Rojas Arce Henry', nrc: '30245' },
+    // Miércoles (3)
+    { id: 'class-ele-17', labId: 'electronica', dayOfWeek: 3, blockId: 'B2', courseName: 'Taller de Robótica', teacherName: 'Leon Soto Juan Carlos', nrc: '23465' },
+    { id: 'class-ele-18', labId: 'electronica', dayOfWeek: 3, blockId: 'B3', courseName: 'Taller de Robótica', teacherName: 'Leon Soto Juan Carlos', nrc: '23466' },
+    { id: 'class-ele-19', labId: 'electronica', dayOfWeek: 3, blockId: 'B4', courseName: 'Electrónica Digital', teacherName: 'Gomez Montes Juan Daniel', nrc: '69101' },
+    { id: 'class-ele-20', labId: 'electronica', dayOfWeek: 3, blockId: 'B5', courseName: 'Ingeniería de Control', teacherName: 'Romero Alvarado Juan Alfredo', nrc: '28571' },
+    { id: 'class-ele-21', labId: 'electronica', dayOfWeek: 3, blockId: 'B6', courseName: 'Circuitos Digitales 2', teacherName: 'Araujo Castillo Lenin', nrc: '25049' },
+    { id: 'class-ele-22', labId: 'electronica', dayOfWeek: 3, blockId: 'B7', courseName: 'Circuitos Digitales 2', teacherName: 'Araujo Castillo Lenin', nrc: '25049' },
+    { id: 'class-ele-23', labId: 'electronica', dayOfWeek: 3, blockId: 'B8', courseName: 'Medios de Transmisión y Antenas', teacherName: 'Hurtado Terranova Edwin Ricardo', nrc: '21056' },
+    { id: 'class-ele-24', labId: 'electronica', dayOfWeek: 3, blockId: 'B9', courseName: 'Telecomunicaciones 2', teacherName: 'Hurtado Terranova Edwin Ricardo', nrc: '21019' },
+    // Jueves (4)
+    { id: 'class-ele-25', labId: 'electronica', dayOfWeek: 4, blockId: 'B1', courseName: 'Circuitos Digitales 2', teacherName: 'Araujo Castillo Lenin', nrc: '25049' },
+    { id: 'class-ele-26', labId: 'electronica', dayOfWeek: 4, blockId: 'B2', courseName: 'Electrónica Digital', teacherName: 'Alfaro Bazan Pablo Martin', nrc: '21299' },
+    { id: 'class-ele-27', labId: 'electronica', dayOfWeek: 4, blockId: 'B3', courseName: 'Electrónica Digital', teacherName: 'Alfaro Bazan Pablo Martin', nrc: '21299' },
+    { id: 'class-ele-28', labId: 'electronica', dayOfWeek: 4, blockId: 'B4', courseName: 'Procesamiento de Señales Ing. Electrónica', teacherName: 'Gutierrez Magan Luis Mauricio', nrc: '21063' },
+    { id: 'class-ele-29', labId: 'electronica', dayOfWeek: 4, blockId: 'B5', courseName: 'Procesamiento de Señales Ing. Electrónica', teacherName: 'Gutierrez Magan Luis Mauricio', nrc: '21063' },
+    { id: 'class-ele-30', labId: 'electronica', dayOfWeek: 4, blockId: 'B6', courseName: 'Microprocesadores y Microcontroladores', teacherName: 'Mendoza Chomba Jorge Esteban', nrc: '21061' },
+    { id: 'class-ele-31', labId: 'electronica', dayOfWeek: 4, blockId: 'B7', courseName: 'Dispositivos Electrónicos', teacherName: 'León Cerna Martín Aarón', nrc: '21015' },
+    { id: 'class-ele-32', labId: 'electronica', dayOfWeek: 4, blockId: 'B8', courseName: 'Robótica', teacherName: 'Mendoza Chomba Jorge Esteban', nrc: '21053' },
+    { id: 'class-ele-33', labId: 'electronica', dayOfWeek: 4, blockId: 'B9', courseName: 'Robótica', teacherName: 'Mendoza Chomba Jorge Esteban', nrc: '21053' },
+    // Viernes (5)
+    { id: 'class-ele-34', labId: 'electronica', dayOfWeek: 5, blockId: 'B1', courseName: 'Microprocesadores y Microcontroladores', teacherName: 'Mendoza Chomba Jorge Esteban', nrc: '26814' },
+    { id: 'class-ele-35', labId: 'electronica', dayOfWeek: 5, blockId: 'B2', courseName: 'Microprocesadores y Microcontroladores', teacherName: 'Mendoza Chomba Jorge Esteban', nrc: '26815' },
+    { id: 'class-ele-36', labId: 'electronica', dayOfWeek: 5, blockId: 'B3', courseName: 'Taller de Robótica', teacherName: 'Leon Soto Juan Carlos', nrc: '30313' },
+    { id: 'class-ele-37', labId: 'electronica', dayOfWeek: 5, blockId: 'B4', courseName: 'Taller de Robótica', teacherName: 'Leon Soto Juan Carlos', nrc: '30314' },
+    { id: 'class-ele-38', labId: 'electronica', dayOfWeek: 5, blockId: 'B5', courseName: 'Procesamiento de Señales', teacherName: 'Gutierrez Magan Luis Mauricio', nrc: '21286' },
+    { id: 'class-ele-39', labId: 'electronica', dayOfWeek: 5, blockId: 'B6', courseName: 'Procesamiento de Señales', teacherName: 'Gutierrez Magan Luis Mauricio', nrc: '21286' },
+    { id: 'class-ele-40', labId: 'electronica', dayOfWeek: 5, blockId: 'B8', courseName: 'Inteligencia Artificial y Sistemas Expertos', teacherName: 'Grijalba Mauricio Jean Marco', nrc: '25054' },
+    // Sábado (6)
+    { id: 'class-ele-41', labId: 'electronica', dayOfWeek: 6, blockId: 'B1', courseName: 'Circuitos y Sistemas Digitales', teacherName: 'Araujo Castillo Lenin', nrc: '28541' },
+    { id: 'class-ele-42', labId: 'electronica', dayOfWeek: 6, blockId: 'B2', courseName: 'Circuitos y Sistemas Digitales', teacherName: 'Araujo Castillo Lenin', nrc: '28541' },
+    { id: 'class-ele-43', labId: 'electronica', dayOfWeek: 6, blockId: 'B3', courseName: 'Circuitos y Sistemas Digitales', teacherName: 'Araujo Castillo Lenin', nrc: '28538' },
+    { id: 'class-ele-44', labId: 'electronica', dayOfWeek: 6, blockId: 'B4', courseName: 'Circuitos y Sistemas Digitales', teacherName: 'Araujo Castillo Lenin', nrc: '28538' },
+    { id: 'class-ele-45', labId: 'electronica', dayOfWeek: 6, blockId: 'B5', courseName: 'Inteligencia Artificial y Sistemas Expertos', teacherName: 'Grijalba Mauricio Jean Marco', nrc: '26824' },
+    { id: 'class-ele-46', labId: 'electronica', dayOfWeek: 6, blockId: 'B6', courseName: 'Inteligencia Artificial y Sistemas Expertos', teacherName: 'Grijalba Mauricio Jean Marco', nrc: '26825' },
+    { id: 'class-ele-47', labId: 'electronica', dayOfWeek: 6, blockId: 'B7', courseName: 'Arquitectura del Computador', teacherName: 'Valqui Sipiran Alexanders', nrc: '6770' },
+    { id: 'class-ele-48', labId: 'electronica', dayOfWeek: 6, blockId: 'B8', courseName: 'Inteligencia Artificial y Sistemas Expertos', teacherName: 'Grijalba Mauricio Jean Marco', nrc: '26825' },
   ];
 
   const reservation1: LabReservation = {

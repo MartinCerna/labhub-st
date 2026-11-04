@@ -16,8 +16,8 @@ export type TimeBlockId =
   | 'B8'
   | 'B9';
 
-/** 1 = Lunes, 2 = Martes, 3 = Miércoles, 4 = Jueves, 5 = Viernes, 6 = Sábado */
-export type DayOfWeek = 1 | 2 | 3 | 4 | 5 | 6;
+/** 1 = Lunes, 2 = Martes, 3 = Miércoles, 4 = Jueves, 5 = Viernes, 6 = Sábado, 7 = Domingo */
+export type DayOfWeek = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface TimeBlockDefinition {
   id: TimeBlockId;
