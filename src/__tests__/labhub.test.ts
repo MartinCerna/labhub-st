@@ -20,6 +20,8 @@ import {
   getWeekDaysForOffset,
   formatLocalIsoDate,
   OBSERVATION_WINDOW_HOURS,
+  ADVISORY_ALLOWED_BLOCKS,
+  MAX_PRINT_3D_DIMENSION_MM,
 } from '@/constants/schedule';
 import {
   validateStlFileName,
@@ -51,6 +53,7 @@ import { AdminSessionUser, AdvisoryRequest, LabReservation } from '@/types/labhu
 // Route Handlers
 import { GET as getCatalog } from '@/app/api/catalog/route';
 import { GET as getLabSchedule } from '@/app/api/labs/schedule/route';
+import { GET as getAdvisorSchedule } from '@/app/api/advisors/schedule/route';
 import { POST as postAdvisory } from '@/app/api/advisories/route';
 import { GET as getLoans, POST as postLoan, PATCH as patchLoan } from '@/app/api/loans/route';
 import { GET as getPrints, POST as postPrint, PATCH as patchPrint } from '@/app/api/prints/route';
@@ -176,8 +179,13 @@ describe('LabHub ST — Suite Integral de Pruebas de Calidad (QA)', () => {
       expect(formatLocalIsoDate(dateEnd)).toBe('2026-12-31');
     });
 
-    it('debe tener ventana de observación de 72 horas definida en constantes', () => {
-      expect(OBSERVATION_WINDOW_HOURS).toBe(72);
+    it('debe tener ventana de observación de 48 horas definida en constantes', () => {
+      expect(OBSERVATION_WINDOW_HOURS).toBe(48);
+    });
+
+    it('debe definir bloques permitidos para asesorías y dimensión máxima de impresión 3D', () => {
+      expect(ADVISORY_ALLOWED_BLOCKS).toEqual(['B2', 'B3', 'B4', 'B5', 'B6', 'B7']);
+      expect(MAX_PRINT_3D_DIMENSION_MM).toBe(200);
     });
   });
 
@@ -607,6 +615,80 @@ endsolid test_cube`;
       expect(json.error).toContain('2 semanas lectivas');
     });
 
+    it('POST /api/advisories debe rechazar bloques fuera del rango 09:10 - 19:20 (B2 a B7)', async () => {
+      const nextWeek = getWeekDaysForOffset(1);
+      const targetDate = nextWeek.days[2].date;
+
+      const req = new NextRequest('http://localhost:3000/api/advisories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          advisorId: 'adv-1',
+          date: targetDate,
+          blockIds: ['B1'], // Bloque B1 (07:30 - 09:00) fuera de rango
+          projectName: 'Proyecto Fuera de Horario Asesoría',
+          course: 'Control',
+          nrc: '4512',
+          students: [{ fullName: 'Test Alumno', upnCode: 'N00999991' }],
+        }),
+      });
+
+      const response = await postAdvisory(req);
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toContain('Las asesorías solo pueden reservarse entre las 09:10 y las 19:20');
+    });
+
+    it('POST /api/advisories debe rechazar turnos con solo un asistente en turno (< 2 asistentes)', async () => {
+      const nextWeek = getWeekDaysForOffset(1);
+      const saturdayDate = nextWeek.days[5].date; // Sábado (día 6)
+
+      const req = new NextRequest('http://localhost:3000/api/advisories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          advisorId: 'adv-1',
+          date: saturdayDate,
+          blockIds: ['B2'], // Sábado B2 solo cuenta con adv-1
+          projectName: 'Proyecto Asistente Único',
+          course: 'Control',
+          nrc: '4512',
+          students: [{ fullName: 'Test Alumno', upnCode: 'N00999991' }],
+        }),
+      });
+
+      const response = await postAdvisory(req);
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toContain('solo se encuentra un único asistente');
+    });
+
+    it('GET /api/advisors/schedule debe retornar NO_ATIENDE en bloques fuera de B2-B7 o con < 2 asistentes', async () => {
+      const req = new NextRequest('http://localhost:3000/api/advisors/schedule?advisorId=adv-1&weekOffset=1');
+      const response = await getAdvisorSchedule(req);
+      expect(response.status).toBe(200);
+
+      const json = await response.json();
+      const nextWeek = getWeekDaysForOffset(1);
+      const wednesday = nextWeek.days[2].date;
+      const saturday = nextWeek.days[5].date;
+
+      // Miércoles B1 (07:30 - 09:00): fuera de ADVISORY_ALLOWED_BLOCKS -> NO_ATIENDE
+      const wedB1 = json.slots.find((s: any) => s.date === wednesday && s.blockId === 'B1');
+      expect(wedB1).toBeDefined();
+      expect(wedB1.state).toBe('NO_ATIENDE');
+
+      // Sábado B2: adv-1 está disponible pero solo hay 1 asistente -> NO_ATIENDE
+      const satB2 = json.slots.find((s: any) => s.date === saturday && s.blockId === 'B2');
+      expect(satB2).toBeDefined();
+      expect(satB2.state).toBe('NO_ATIENDE');
+
+      // Miércoles B4: 2 asistentes y dentro de B2-B7 -> DISPONIBLE
+      const wedB4 = json.slots.find((s: any) => s.date === wednesday && s.blockId === 'B4');
+      expect(wedB4).toBeDefined();
+      expect(['DISPONIBLE', 'OCUPADO']).toContain(wedB4.state);
+    });
+
     it('POST /api/advisories debe registrar asesoría y crear su reserva vinculada con origin: ASESORIA', async () => {
       // Elegimos el miércoles de la próxima semana (weekOffset = 1, day 2)
       // adv-1 (Martín Aarón León Cerna, horario Azul) atiende de Miércoles a Sábado
@@ -772,7 +854,7 @@ endsolid test_cube`;
       expect(updatedLoan.adminNotes).toBe('Equipos devueltos completos y operativos.');
     });
 
-    it('GET, POST y PATCH /api/prints debe validar archivos STL y fijar ventana de +72 horas al pasar a OBSERVADO', async () => {
+    it('GET, POST y PATCH /api/prints debe validar archivos STL y fijar ventana de +48 horas al pasar a OBSERVADO', async () => {
       // 1. GET búsqueda
       const getReq = new NextRequest('http://localhost:3000/api/prints?query=3DP-2026-0001');
       const getRes = await getPrints(getReq);
@@ -848,7 +930,7 @@ endsolid test_cube`;
       const patchNoCommentJson = await patchNoCommentRes.json();
       expect(patchNoCommentJson.error).toContain('obligatorio detallar el motivo');
 
-      // 5. PATCH con cambio a OBSERVADO y verificación exacta de plazo de +72 horas
+      // 5. PATCH con cambio a OBSERVADO y verificación exacta de plazo de +48 horas
       const beforePatchTime = Date.now();
       const patchObservedReq = new NextRequest('http://localhost:3000/api/prints', {
         method: 'PATCH',
@@ -876,9 +958,9 @@ endsolid test_cube`;
       const observedAtMs = new Date(observedPrint.observedAt).getTime();
       const expiresAtMs = new Date(observedPrint.observationExpiresAt).getTime();
 
-      // Plazo exacto de +72 horas (72 * 3600 * 1000 = 259,200,000 ms)
+      // Plazo exacto de +48 horas (48 * 3600 * 1000 = 172,800,000 ms)
       const diffHours = (expiresAtMs - observedAtMs) / (1000 * 60 * 60);
-      expect(diffHours).toBeCloseTo(72, 2);
+      expect(diffHours).toBeCloseTo(48, 2);
 
       // Historial de cambios
       const lastHistory = observedPrint.statusHistory[observedPrint.statusHistory.length - 1];

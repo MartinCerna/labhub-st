@@ -5,7 +5,7 @@ import {
   Print3DStatus,
   StlFileMetadata,
 } from '@/types/labhub';
-import { PRINT_3D_STATUSES } from '@/constants/schedule';
+import { OBSERVATION_WINDOW_HOURS, PRINT_3D_STATUSES } from '@/constants/schedule';
 import { dbRepository } from '@/lib/storage/db';
 import { parseStlBuffer, validateStlFileName } from '@/lib/stl-parser';
 import { getAdminSessionFromRequest, requireAdminSession } from '@/lib/auth';
@@ -205,9 +205,9 @@ export async function PATCH(request: NextRequest) {
       if (body.status === 'OBSERVADO') {
         printItem.observationComment = body.observationComment?.trim();
         printItem.observedAt = now.toISOString();
-        // Vencimiento exacto de 72 horas para subsanación
+        // Vencimiento exacto de 48 horas para subsanación
         printItem.observationExpiresAt = new Date(
-          now.getTime() + 72 * 3600 * 1000
+          now.getTime() + OBSERVATION_WINDOW_HOURS * 3600 * 1000
         ).toISOString();
       }
 

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { AdvisoryRequest, CreateAdvisoryPayload, LabReservation } from '@/types/labhub';
-import { TIME_BLOCK_MAP, getWeekDaysForOffset } from '@/constants/schedule';
+import {
+  ADVISORY_ALLOWED_BLOCKS,
+  TIME_BLOCK_MAP,
+  getWeekDaysForOffset,
+} from '@/constants/schedule';
 import { dbRepository } from '@/lib/storage/db';
 import { buildAdvisoryCalendarDetails, buildGoogleCalendarUrl } from '@/lib/calendar/ics';
 import { googleBridge } from '@/lib/google/bridge';
@@ -57,6 +61,15 @@ export async function POST(request: NextRequest) {
     });
 
     for (const bId of payload.blockIds) {
+      if (!ADVISORY_ALLOWED_BLOCKS.includes(bId)) {
+        return NextResponse.json(
+          {
+            error:
+              'Las asesorías solo pueden reservarse entre las 09:10 y las 19:20 (Bloques B2 a B7).',
+          },
+          { status: 400 }
+        );
+      }
       const blockDef = TIME_BLOCK_MAP[bId];
       if (!blockDef) {
         return NextResponse.json(
@@ -94,6 +107,21 @@ export async function POST(request: NextRequest) {
       let assignedLabId: string | undefined;
 
       for (const bId of payload.blockIds) {
+        // Restricción de mínimo 2 asistentes en turno simultáneo
+        const assistantsOnDutyCount = db.advisors
+          .filter((a) => a.active)
+          .filter((a) =>
+            a.weeklyAvailability.some(
+              (av) => av.dayOfWeek === dayOfWeek && av.blockId === bId
+            )
+          ).length;
+
+        if (assistantsOnDutyCount < 2) {
+          throw new Error(
+            'No se brindan asesorías en turnos donde solo se encuentra un único asistente en laboratorio.'
+          );
+        }
+
         // Verificar disponibilidad declarada del asesor
         const avail = advisor.weeklyAvailability.find(
           (av) => av.dayOfWeek === dayOfWeek && av.blockId === bId

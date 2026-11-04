@@ -125,6 +125,7 @@ export function Print3DPortalView({
   // Estado de envío y comprobante
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [createdRequest, setCreatedRequest] = useState<Print3DRequest | null>(null);
+  const [acceptedConditions, setAcceptedConditions] = useState<boolean>(false);
 
   // Estado de Seguimiento / Búsqueda
   const [trackQuery, setTrackQuery] = useState<string>(initialTrackQuery || '');
@@ -133,7 +134,7 @@ export function Print3DPortalView({
   const [selectedRequest, setSelectedRequest] = useState<Print3DRequest | null>(null);
   const [trackError, setTrackError] = useState<string | null>(null);
 
-  // Estado de Subsanación (cuando está OBSERVADO dentro de las 72h)
+  // Estado de Subsanación (cuando está OBSERVADO dentro de las 48h)
   const [resubmitFiles, setResubmitFiles] = useState<StlLocalFile[]>([]);
   const [resubmitting, setResubmitting] = useState<boolean>(false);
 
@@ -178,6 +179,20 @@ export function Print3DPortalView({
       try {
         const buffer = await f.arrayBuffer();
         const parsed = parseStlBuffer(buffer);
+
+        // Validación de dimensiones máximas: 20 × 20 × 20 cm = 200 × 200 × 200 mm
+        if (
+          parsed.dimensionsMm.x > 200 ||
+          parsed.dimensionsMm.y > 200 ||
+          parsed.dimensionsMm.z > 200
+        ) {
+          showToast(
+            `El archivo "${f.name}" (${parsed.dimensionsMm.x} × ${parsed.dimensionsMm.y} × ${parsed.dimensionsMm.z} mm) supera las dimensiones máximas permitidas de 20×20×20 cm (200×200×200 mm).`,
+            'error'
+          );
+          continue;
+        }
+
         setStlLst((prev) => [...prev, { file: f, parsed }]);
         addedCount++;
       } catch (err: unknown) {
@@ -237,6 +252,11 @@ export function Print3DPortalView({
       return;
     }
 
+    if (!acceptedConditions) {
+      showToast('Debes declarar haber leído y aceptado las condiciones obligatorias de impresión 3D del HUB Tecnológico.', 'warning');
+      return;
+    }
+
     const formData = new FormData();
     formData.append('studentFullName', studentFullName.trim());
     formData.append('upnCode', upnCode.trim().toUpperCase());
@@ -261,8 +281,9 @@ export function Print3DPortalView({
         teacherName,
       });
       showToast(`¡Solicitud ${res.printRequest.code} creada exitosamente!`, 'success');
-      // Limpiar archivos locales
+      // Limpiar archivos locales y aceptación de condiciones
       setStlLst([]);
+      setAcceptedConditions(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al registrar solicitud 3D';
       showToast(msg, 'error');
@@ -304,7 +325,7 @@ export function Print3DPortalView({
   };
 
   // --------------------------------------------------------------------------
-  // Subsanación de Archivos Observados (Dentro del plazo de 72h)
+  // Subsanación de Archivos Observados (Dentro del plazo de 48h)
   // --------------------------------------------------------------------------
   const processResubmitFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -316,6 +337,20 @@ export function Print3DPortalView({
       try {
         const buf = await f.arrayBuffer();
         const parsed = parseStlBuffer(buf);
+
+        // Validación de dimensiones máximas: 20 × 20 × 20 cm = 200 × 200 × 200 mm
+        if (
+          parsed.dimensionsMm.x > 200 ||
+          parsed.dimensionsMm.y > 200 ||
+          parsed.dimensionsMm.z > 200
+        ) {
+          showToast(
+            `El archivo "${f.name}" (${parsed.dimensionsMm.x} × ${parsed.dimensionsMm.y} × ${parsed.dimensionsMm.z} mm) supera las dimensiones máximas permitidas de 20×20×20 cm (200×200×200 mm).`,
+            'error'
+          );
+          continue;
+        }
+
         setResubmitFiles((prev) => [...prev, { file: f, parsed }]);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Error al procesar STL';
@@ -410,6 +445,114 @@ export function Print3DPortalView({
             <p className="text-xs text-slate-500 mt-1">
               Ingresa la información académica y carga tus archivos .stl para iniciar la revisión técnica.
             </p>
+          </div>
+
+          {/* PANEL DESTACADO: CONDICIONES OBLIGATORIAS PARA IMPRESIÓN 3D — HUB TECNOLÓGICO */}
+          <div className="bg-gradient-to-br from-amber-50/90 via-white to-indigo-50/40 rounded-2xl border-2 border-amber-300 p-5 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold shadow-xs shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-slate-950" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                    Condiciones Obligatorias para Impresión 3D — HUB Tecnológico
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-slate-600">
+                    Normativa de manufactura aditiva y laboratorio UPN. Lectura requerida antes de solicitar fabricación.
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex self-start sm:self-auto px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-950 uppercase tracking-wider">
+                Reglamento Vigente
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-white/95 rounded-xl border border-amber-200/70 flex items-start gap-2.5 shadow-2xs">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                  1
+                </span>
+                <div>
+                  <strong className="text-slate-900 font-bold block text-xs">
+                    Uso exclusivo académico y de investigación:
+                  </strong>
+                  <span className="text-slate-600 text-[11px] leading-relaxed">
+                    Las impresiones son exclusivamente de uso académico y/o de investigación universitaria.
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-white/95 rounded-xl border border-amber-200/70 flex items-start gap-2.5 shadow-2xs">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                  2
+                </span>
+                <div>
+                  <strong className="text-slate-900 font-bold block text-xs">
+                    Evaluación técnica y plazo de subsanación de 48 h:
+                  </strong>
+                  <span className="text-slate-600 text-[11px] leading-relaxed">
+                    La impresión de los modelos está sujeta a evaluación por parte del HUB Tecnológico; en caso de presentarse alguna observación, se notificará y el estudiante tendrá un plazo máximo de <strong className="text-amber-950 font-bold">48 horas</strong> para subsanarla, caso contrario su Ticket será eliminado.
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-white/95 rounded-xl border border-amber-200/70 flex items-start gap-2.5 shadow-2xs">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                  3
+                </span>
+                <div>
+                  <strong className="text-slate-900 font-bold block text-xs">
+                    Tiempos sujetos a cola y geometría:
+                  </strong>
+                  <span className="text-slate-600 text-[11px] leading-relaxed">
+                    El tiempo de entrega dependerá de la cola de impresión pendiente en ese momento y de la propia complejidad geométrica de los modelos .stl enviados.
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-white/95 rounded-xl border border-amber-200/70 flex items-start gap-2.5 shadow-2xs">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                  4
+                </span>
+                <div>
+                  <strong className="text-slate-900 font-bold block text-xs">
+                    Responsabilidad sobre el diseño y resistencia estructural:
+                  </strong>
+                  <span className="text-slate-600 text-[11px] leading-relaxed">
+                    Cualquier falla estructural, fragilidad por espesor insuficiente, errores de ensamblaje/tolerancias o defectos derivados del propio diseño CAD enviado son de <strong className="text-rose-700 font-bold">exclusiva responsabilidad del estudiante</strong>. El laboratorio no asume responsabilidad por piezas que fallen mecánicamente a causa de su modelado.
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-white/95 rounded-xl border border-amber-200/70 flex items-start gap-2.5 shadow-2xs">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                  5
+                </span>
+                <div>
+                  <strong className="text-slate-900 font-bold block text-xs">
+                    Formato único admitido:
+                  </strong>
+                  <span className="text-slate-600 text-[11px] leading-relaxed">
+                    Únicamente se aceptarán archivos en formato <strong className="font-mono text-slate-800">.stl</strong>.
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-white/95 rounded-xl border border-amber-200/70 flex items-start gap-2.5 shadow-2xs">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                  6
+                </span>
+                <div>
+                  <strong className="text-slate-900 font-bold block text-xs">
+                    Dimensiones máximas permitidas:
+                  </strong>
+                  <span className="text-slate-600 text-[11px] leading-relaxed">
+                    Las dimensiones máximas de impresión por modelo deben ser de <strong className="text-indigo-900 font-mono font-bold">20 × 20 × 20 cm (200 × 200 × 200 mm)</strong>.
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <form onSubmit={handleSubmitPrintRequest} className="space-y-8">
@@ -696,6 +839,28 @@ export function Print3DPortalView({
               )}
             </div>
 
+            {/* CHECKBOX OBLIGATORIO DE ACEPTACIÓN DE CONDICIONES */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/70 border border-amber-300 space-y-2">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={acceptedConditions}
+                  onChange={(e) => setAcceptedConditions(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-amber-400 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                  required
+                />
+                <span className="text-xs text-slate-700 leading-relaxed font-medium">
+                  Declaro haber leído y acepto las <strong className="text-slate-900 font-bold">Condiciones Obligatorias para Impresión 3D del HUB Tecnológico</strong>. Asumo la <strong className="text-rose-700 font-bold">exclusiva responsabilidad por fallas estructurales o defectos mecánicos derivados de mi diseño CAD</strong> y ratifico que mis modelos cumplen con el límite máximo de <strong className="text-slate-900 font-mono font-bold">20 × 20 × 20 cm (200 × 200 × 200 mm)</strong> en formato <strong className="font-mono text-slate-900 font-bold">.stl</strong>.
+                </span>
+              </label>
+              {!acceptedConditions && (
+                <p className="text-[11px] text-amber-800 font-semibold pl-7 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Debes aceptar las condiciones obligatorias para habilitar el envío de tu solicitud.</span>
+                </p>
+              )}
+            </div>
+
             {/* BOTONES INFERIORES: ACCIÓN Y SEGUIMIENTO DEDICADO */}
             <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
               <Link
@@ -708,8 +873,8 @@ export function Print3DPortalView({
 
               <button
                 type="submit"
-                disabled={submitting || stlLst.length === 0}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
+                disabled={submitting || stlLst.length === 0 || !acceptedConditions}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? (
                   <>
@@ -793,7 +958,7 @@ export function Print3DPortalView({
       )}
 
       {/* ===================================================================== */}
-      {/* VISTA 2: SEGUIMIENTO DE SOLICITUDES (7 ESTADOS + SUBSANACIÓN 72H)      */}
+      {/* VISTA 2: SEGUIMIENTO DE SOLICITUDES (7 ESTADOS + SUBSANACIÓN 48H)      */}
       {/* ===================================================================== */}
       {mode === 'tracking' && (
         <div className="space-y-6">
@@ -904,7 +1069,7 @@ export function Print3DPortalView({
                 <TimelineProgress currentStatus={selectedRequest.status} />
               </div>
 
-              {/* CASO ESPECIAL OBSERVADO: RECUADRO CON CUENTA REGRESIVA 72H Y SUBSANACIÓN */}
+              {/* CASO ESPECIAL OBSERVADO: RECUADRO CON CUENTA REGRESIVA 48H Y SUBSANACIÓN */}
               {selectedRequest.status === 'OBSERVADO' && (
                 <ObservationPanel
                   request={selectedRequest}
@@ -1081,7 +1246,7 @@ function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
               Observado en Revisión (Requiere Subsanación)
             </span>
             <span className="text-[11px] text-rose-700">
-              El asistente técnico ha solicitado correcciones en tus archivos .STL dentro de la ventana de 72 horas.
+              El asistente técnico ha solicitado correcciones en tus archivos .STL dentro de la ventana de 48 horas.
             </span>
           </div>
         </div>
@@ -1141,7 +1306,7 @@ function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
 }
 
 // ----------------------------------------------------------------------------
-// COMPONENTE: PANEL DE OBSERVACIÓN CON RELOJ REGRESIVO DE 72 HORAS
+// COMPONENTE: PANEL DE OBSERVACIÓN CON RELOJ REGRESIVO DE 48 HORAS
 // ----------------------------------------------------------------------------
 interface ObservationPanelProps {
   request: Print3DRequest;
@@ -1170,10 +1335,10 @@ function ObservationPanel({
   }>({ hours: 0, minutes: 0, seconds: 0, expired: false });
 
   useEffect(() => {
-    // Si no tiene observationExpiresAt pero está observado, calcular 72 horas desde createdAt
+    // Si no tiene observationExpiresAt pero está observado, calcular 48 horas desde createdAt
     const expiresMs = request.observationExpiresAt
       ? new Date(request.observationExpiresAt).getTime()
-      : new Date(request.createdAt).getTime() + 72 * 60 * 60 * 1000;
+      : new Date(request.createdAt).getTime() + 48 * 60 * 60 * 1000;
 
     const updateTimer = () => {
       const now = Date.now();
@@ -1216,7 +1381,7 @@ function ObservationPanel({
         {/* RELOJ REGRESIVO EN VIVO (HORAS : MINUTOS : SEGUNDOS) */}
         <div className="bg-white rounded-2xl px-5 py-3 border border-rose-200 shadow-xs text-center shrink-0">
           <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">
-            Plazo Límite de 72 Horas:
+            Plazo Límite de 48 Horas:
           </span>
           {timeLeft.expired ? (
             <span className="text-sm font-bold text-rose-700">Plazo Vencido</span>
@@ -1332,7 +1497,7 @@ function ObservationPanel({
         </div>
       ) : (
         <div className="p-4 bg-white rounded-2xl border border-rose-200 text-xs text-rose-800">
-          El plazo máximo de 72 horas para subsanar ha caducado. Por favor, acércate presencialmente al laboratorio de Mecatrónica para coordinar una reactivación con el docente asistente.
+          El plazo máximo de 48 horas para subsanar ha caducado. Por favor, acércate presencialmente al laboratorio de Mecatrónica para coordinar una reactivación con el docente asistente.
         </div>
       )}
     </div>

@@ -672,6 +672,23 @@ export function AdvisoryBookingView() {
       </div>
 
       {/* ===================================================================== */}
+      {/* AVISO INFORMATIVO DE HORARIO OFICIAL DE ASESORÍAS                     */}
+      {/* ===================================================================== */}
+      <div className="bg-sky-50/80 border border-sky-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-start sm:items-center gap-3.5">
+        <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 shadow-2xs">
+          <Info className="w-5 h-5 text-sky-600" />
+        </div>
+        <div className="text-xs sm:text-sm text-sky-950 leading-relaxed">
+          <strong className="font-extrabold text-sky-900 block sm:inline sm:mr-1">
+            Horario de Asesorías:
+          </strong>
+          <span>
+            Las asesorías académicas se reservan exclusivamente entre las <strong className="font-mono text-sky-900">09:10 y las 19:20</strong> (Bloques B2 a B7) en turnos donde se encuentran al menos 2 asistentes en simultáneo.
+          </span>
+        </div>
+      </div>
+
+      {/* ===================================================================== */}
       {/* GRILLA SEMANAL DE LOS 9 BLOQUES                                       */}
       {/* ===================================================================== */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">

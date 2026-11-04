@@ -100,7 +100,9 @@ export const PRINT_3D_STATUSES: Print3DStatus[] = [
   'ENTREGADA',
 ];
 
-export const OBSERVATION_WINDOW_HOURS = 72;
+export const OBSERVATION_WINDOW_HOURS = 48;
+export const ADVISORY_ALLOWED_BLOCKS: TimeBlockId[] = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7'];
+export const MAX_PRINT_3D_DIMENSION_MM = 200; // 20 x 20 x 20 cm
 
 export const UPN_CAREERS: string[] = [
   'Ingeniería Mecatrónica',

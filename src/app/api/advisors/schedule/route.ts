@@ -5,7 +5,12 @@ import {
   ComputedAdvisorSlot,
   LabId,
 } from '@/types/labhub';
-import { TIME_BLOCK_MAP, TIME_BLOCKS, getWeekDaysForOffset } from '@/constants/schedule';
+import {
+  ADVISORY_ALLOWED_BLOCKS,
+  TIME_BLOCK_MAP,
+  TIME_BLOCKS,
+  getWeekDaysForOffset,
+} from '@/constants/schedule';
 import { dbRepository } from '@/lib/storage/db';
 
 export async function GET(request: NextRequest) {
@@ -44,6 +49,34 @@ export async function GET(request: NextRequest) {
         const isPastDate = day.date < nowIsoDate;
         const isPastToday = day.date === nowIsoDate && nowTimeStr >= block.endTime;
         const isPast = isPastDate || isPastToday;
+
+        // Restricción de horario (09:10 a 19:20)
+        if (!ADVISORY_ALLOWED_BLOCKS.includes(block.id)) {
+          slots.push({
+            date: day.date,
+            dayOfWeek: day.dayOfWeek,
+            blockId: block.id,
+            state: 'NO_ATIENDE',
+          });
+          continue;
+        }
+
+        // Restricción de mínimo 2 asistentes en turno simultáneo
+        const assistantsOnDutyCount = allAdvisors.filter((a) =>
+          a.weeklyAvailability.some(
+            (av) => av.dayOfWeek === day.dayOfWeek && av.blockId === block.id
+          )
+        ).length;
+
+        if (assistantsOnDutyCount < 2) {
+          slots.push({
+            date: day.date,
+            dayOfWeek: day.dayOfWeek,
+            blockId: block.id,
+            state: 'NO_ATIENDE',
+          });
+          continue;
+        }
 
         // Verificar si el asesor atiende en este día y bloque
         const avail = advisor.weeklyAvailability.find(
