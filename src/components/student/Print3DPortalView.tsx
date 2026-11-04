@@ -397,7 +397,7 @@ export function Print3DPortalView({
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 text-xs font-semibold mb-2">
             <Printer className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Módulo 4 • Prototipado y Manufactura Aditiva</span>
+            <span>Módulo 4 • Prototipado e impresión</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             {mode === 'tracking'
