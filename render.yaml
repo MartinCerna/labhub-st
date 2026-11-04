@@ -4,11 +4,11 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start
-    healthCheckPath: /
+    healthCheckPath: /api/bootstrap
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: NODE_VERSION
         value: 22.13.0
+      - key: GOOGLE_APPS_SCRIPT_URL
+        value: https://script.google.com/macros/s/AKfycbyvaLcBQXOv4XfD5LUqhYNauu6LOEUyHkmgmSyZTDeBDtP6A75FlN1UYn0GOJy8d2ZA/exec
