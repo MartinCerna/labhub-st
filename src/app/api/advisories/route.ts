@@ -104,12 +104,6 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        if (!assignedLabId) {
-          assignedLabId = avail.labId;
-        } else if (assignedLabId !== avail.labId) {
-          throw new Error('Todos los bloques deben pertenecer al mismo laboratorio asignado.');
-        }
-
         // Verificar si el asesor ya tiene una asesoría programada
         const advisorOccupied = db.advisories.some(
           (a) =>
@@ -124,47 +118,78 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Verificar bloqueos manuales
-        const isBlocked = db.slotBlocks.some(
+        // Verificar si el asesor tiene un bloqueo manual directo
+        const advisorBlocked = db.slotBlocks.some(
           (sb) =>
-            ((sb.targetType === 'ADVISOR' && sb.targetId === advisor.id) ||
-              (sb.targetType === 'LAB' && sb.targetId === avail.labId)) &&
+            sb.targetType === 'ADVISOR' &&
+            sb.targetId === advisor.id &&
             sb.date === payload.date &&
             sb.blockId === bId
         );
-        if (isBlocked) {
+        if (advisorBlocked) {
           throw new Error(
-            `El bloque ${TIME_BLOCK_MAP[bId].label} se encuentra bloqueado por la administración.`
+            `El bloque ${TIME_BLOCK_MAP[bId].label} se encuentra bloqueado por la administración para el asesor.`
           );
         }
 
-        // Verificar que el laboratorio tenga cupo disponible
-        const lab = db.labs.find((l) => l.id === avail.labId);
-        const maxGroups = lab ? lab.maxSimultaneousGroups : 4;
+        // Función para evaluar si un ambiente de laboratorio tiene cupo disponible
+        const isLabAvailable = (targetLabId: string) => {
+          const labObj = db.labs.find((l) => l.id === targetLabId);
+          const maxGroups = labObj ? labObj.maxSimultaneousGroups : 4;
 
-        const labHasClass = db.recurringClasses.some(
-          (c) =>
-            c.labId === avail.labId &&
-            c.dayOfWeek === dayOfWeek &&
-            c.blockId === bId
-        );
-        if (labHasClass) {
+          const hasClass = db.recurringClasses.some(
+            (c) =>
+              c.labId === targetLabId &&
+              c.dayOfWeek === dayOfWeek &&
+              c.blockId === bId
+          );
+          if (hasClass) return false;
+
+          const isBlocked = db.slotBlocks.some(
+            (sb) =>
+              sb.targetType === 'LAB' &&
+              sb.targetId === targetLabId &&
+              sb.date === payload.date &&
+              sb.blockId === bId
+          );
+          if (isBlocked) return false;
+
+          const activeCount = db.reservations.filter(
+            (r) =>
+              r.labId === targetLabId &&
+              r.date === payload.date &&
+              r.status === 'ACTIVA' &&
+              r.blockIds.includes(bId)
+          ).length;
+
+          return activeCount < maxGroups;
+        };
+
+        // Cruce dinámico: evalúa primero el laboratorio preferido del asistente
+        let effectiveBlockLabId: string | undefined;
+
+        if (isLabAvailable(avail.labId)) {
+          effectiveBlockLabId = avail.labId;
+        } else {
+          // Si el preferido tiene clase o no tiene cupo, busca automáticamente otro laboratorio libre
+          const otherLabs = db.labs.filter((l) => l.id !== avail.labId);
+          for (const other of otherLabs) {
+            if (isLabAvailable(other.id)) {
+              effectiveBlockLabId = other.id;
+              break;
+            }
+          }
+        }
+
+        if (!effectiveBlockLabId) {
           throw new Error(
-            `El laboratorio asignado (${lab?.name || avail.labId}) tiene clase regular en el bloque ${TIME_BLOCK_MAP[bId].label}.`
+            `No hay laboratorios con cupo disponible en el bloque ${TIME_BLOCK_MAP[bId].label}.`
           );
         }
 
-        const activeInLab = db.reservations.filter(
-          (r) =>
-            r.labId === avail.labId &&
-            r.date === payload.date &&
-            r.status === 'ACTIVA' &&
-            r.blockIds.includes(bId)
-        );
-        if (activeInLab.length >= maxGroups) {
-          throw new Error(
-            `El laboratorio asignado ya no cuenta con cupos en el bloque ${TIME_BLOCK_MAP[bId].label}.`
-          );
+        // Asignar el primer effectiveLabId válido para la reserva vinculada
+        if (!assignedLabId) {
+          assignedLabId = effectiveBlockLabId;
         }
 
         // Verificar cruce del estudiante líder

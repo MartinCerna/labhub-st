@@ -608,10 +608,10 @@ endsolid test_cube`;
     });
 
     it('POST /api/advisories debe registrar asesoría y crear su reserva vinculada con origin: ASESORIA', async () => {
-      // Elegimos el lunes de la próxima semana (weekOffset = 1, day 0)
-      // En la semilla, adv-1 atiende los Lunes (day 1) en B4 en lab 'automatizacion'
+      // Elegimos el miércoles de la próxima semana (weekOffset = 1, day 2)
+      // adv-1 (Martín Aarón León Cerna, horario Azul) atiende de Miércoles a Sábado
       const nextWeek = getWeekDaysForOffset(1);
-      const targetDate = nextWeek.days[0].date; // Próximo lunes
+      const targetDate = nextWeek.days[2].date; // Próximo miércoles
 
       const advisoryPayload = {
         advisorId: 'adv-1',
@@ -653,7 +653,7 @@ endsolid test_cube`;
       expect(reservation.code).toMatch(/^RES-2026-\d{4}$/);
       expect(reservation.origin).toBe('ASESORIA');
       expect(reservation.status).toBe('ACTIVA');
-      expect(reservation.labId).toBe('automatizacion');
+      expect(['automatizacion', 'electronica', 'mecatronica']).toContain(reservation.labId);
 
       // Enlace cruzado bidireccional
       expect(advisory.linkedReservationId).toBe(reservation.id);

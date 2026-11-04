@@ -3,6 +3,7 @@ import {
   AdvisorSlotState,
   AdvisorWeeklyScheduleResponse,
   ComputedAdvisorSlot,
+  LabId,
 } from '@/types/labhub';
 import { TIME_BLOCK_MAP, TIME_BLOCKS, getWeekDaysForOffset } from '@/constants/schedule';
 import { dbRepository } from '@/lib/storage/db';
@@ -59,33 +60,77 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        const lab = db.labs.find((l) => l.id === avail.labId);
-        const labName = lab ? lab.name : avail.labId;
+        // Función para evaluar disponibilidad de un ambiente de laboratorio
+        const checkLab = (targetLabId: LabId) => {
+          const l = db.labs.find((item) => item.id === targetLabId);
+          const maxG = l ? l.maxSimultaneousGroups : 4;
+          const activeRes = db.reservations.filter(
+            (r) =>
+              r.labId === targetLabId &&
+              r.date === day.date &&
+              r.status === 'ACTIVA' &&
+              r.blockIds.includes(block.id)
+          );
+          const availG = Math.max(0, maxG - activeRes.length);
+          const hasCl = db.recurringClasses.some(
+            (c) =>
+              c.labId === targetLabId &&
+              c.dayOfWeek === day.dayOfWeek &&
+              c.blockId === block.id
+          );
+          const isManualBlocked = db.slotBlocks.some(
+            (sb) =>
+              sb.targetType === 'LAB' &&
+              sb.targetId === targetLabId &&
+              sb.date === day.date &&
+              sb.blockId === block.id
+          );
+          return {
+            lab: l,
+            labId: targetLabId,
+            labName: l ? l.name : targetLabId,
+            availableGroups: availG,
+            hasClass: hasCl,
+            isManualBlocked,
+            isFree: !hasCl && availG > 0 && !isManualBlocked,
+          };
+        };
 
-        // Calcular cupos del laboratorio en ese bloque
-        const labActiveReservations = db.reservations.filter(
-          (r) =>
-            r.labId === avail.labId &&
-            r.date === day.date &&
-            r.status === 'ACTIVA' &&
-            r.blockIds.includes(block.id)
-        );
-        const maxGroups = lab ? lab.maxSimultaneousGroups : 4;
-        const availableGroups = Math.max(0, maxGroups - labActiveReservations.length);
+        // Cruce dinámico: evalúa primero el laboratorio preferido del asistente
+        const preferredCheck = checkLab(avail.labId);
+        let effectiveLabId: LabId = avail.labId;
+        let effectiveLabName = preferredCheck.labName;
+        let effectiveAvailableGroups = preferredCheck.availableGroups;
+        let allLabsFullOrClass = false;
 
-        // Verificar si el laboratorio tiene clase regular en ese horario
-        const labHasClass = db.recurringClasses.some(
-          (c) =>
-            c.labId === avail.labId &&
-            c.dayOfWeek === day.dayOfWeek &&
-            c.blockId === block.id
-        );
+        if (preferredCheck.isFree) {
+          effectiveLabId = preferredCheck.labId;
+          effectiveLabName = preferredCheck.labName;
+          effectiveAvailableGroups = preferredCheck.availableGroups;
+        } else {
+          // Si el preferido tiene clase o no tiene cupo, busca en los otros laboratorios
+          const otherLabs = db.labs.filter((l) => l.id !== avail.labId);
+          let foundAlt = false;
+          for (const other of otherLabs) {
+            const altCheck = checkLab(other.id);
+            if (altCheck.isFree) {
+              effectiveLabId = altCheck.labId;
+              effectiveLabName = altCheck.labName;
+              effectiveAvailableGroups = altCheck.availableGroups;
+              foundAlt = true;
+              break;
+            }
+          }
+          if (!foundAlt) {
+            allLabsFullOrClass = true;
+          }
+        }
 
-        // Verificar bloqueo manual (del asesor o del laboratorio asignado)
+        // Verificar bloqueo manual (del asesor o del laboratorio efectivo asignado)
         const manualBlock = db.slotBlocks.find(
           (sb) =>
             ((sb.targetType === 'ADVISOR' && sb.targetId === advisor.id) ||
-              (sb.targetType === 'LAB' && sb.targetId === avail.labId)) &&
+              (sb.targetType === 'LAB' && sb.targetId === effectiveLabId)) &&
             sb.date === day.date &&
             sb.blockId === block.id
         );
@@ -107,7 +152,7 @@ export async function GET(request: NextRequest) {
           state = 'OCUPADO';
         } else if (isPast) {
           state = 'NO_ATIENDE'; // Bloque pasado no admite agendamiento
-        } else if (labHasClass || availableGroups <= 0) {
+        } else if (allLabsFullOrClass) {
           state = 'LAB_SIN_CUPO';
         } else {
           state = 'DISPONIBLE';
@@ -118,9 +163,9 @@ export async function GET(request: NextRequest) {
           dayOfWeek: day.dayOfWeek,
           blockId: block.id,
           state,
-          labId: avail.labId,
-          labName,
-          labAvailableGroups: availableGroups,
+          labId: effectiveLabId as any,
+          labName: effectiveLabName,
+          labAvailableGroups: effectiveAvailableGroups,
         };
 
         if (manualBlock) {

@@ -246,14 +246,34 @@ function buildInitialDatabase(): LabHubDatabase {
       email: 'martin.cernaa@gmail.com',
       username: 'martin.cernaa@gmail.com',
       avatarInitials: 'ML',
-      badgeColor: '#d97706',
+      badgeColor: '#2563eb',
       active: true,
       weeklyAvailability: [
-        { dayOfWeek: 1, blockId: 'B4', labId: 'automatizacion' },
-        { dayOfWeek: 1, blockId: 'B7', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B1', labId: 'electronica' },
+        { dayOfWeek: 3, blockId: 'B2', labId: 'mecatronica' },
+        { dayOfWeek: 3, blockId: 'B3', labId: 'electronica' },
         { dayOfWeek: 3, blockId: 'B4', labId: 'automatizacion' },
-        { dayOfWeek: 3, blockId: 'B7', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B5', labId: 'electronica' },
+        { dayOfWeek: 3, blockId: 'B6', labId: 'electronica' },
+        { dayOfWeek: 4, blockId: 'B2', labId: 'electronica' },
+        { dayOfWeek: 4, blockId: 'B3', labId: 'electronica' },
+        { dayOfWeek: 4, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 4, blockId: 'B5', labId: 'mecatronica' },
+        { dayOfWeek: 4, blockId: 'B6', labId: 'mecatronica' },
+        { dayOfWeek: 4, blockId: 'B7', labId: 'automatizacion' },
+        { dayOfWeek: 4, blockId: 'B8', labId: 'automatizacion' },
+        { dayOfWeek: 4, blockId: 'B9', labId: 'automatizacion' },
+        { dayOfWeek: 5, blockId: 'B2', labId: 'automatizacion' },
         { dayOfWeek: 5, blockId: 'B3', labId: 'automatizacion' },
+        { dayOfWeek: 5, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 5, blockId: 'B5', labId: 'automatizacion' },
+        { dayOfWeek: 5, blockId: 'B6', labId: 'automatizacion' },
+        { dayOfWeek: 5, blockId: 'B7', labId: 'electronica' },
+        { dayOfWeek: 5, blockId: 'B8', labId: 'automatizacion' },
+        { dayOfWeek: 6, blockId: 'B1', labId: 'automatizacion' },
+        { dayOfWeek: 6, blockId: 'B2', labId: 'automatizacion' },
+        { dayOfWeek: 6, blockId: 'B3', labId: 'automatizacion' },
+        { dayOfWeek: 6, blockId: 'B4', labId: 'automatizacion' },
       ],
     },
     {
@@ -271,14 +291,34 @@ function buildInitialDatabase(): LabHubDatabase {
       email: 'juan.gomez@upn.edu.pe',
       username: 'juan.gomez@upn.edu.pe',
       avatarInitials: 'JG',
-      badgeColor: '#0284c7',
+      badgeColor: '#16a34a',
       active: true,
       weeklyAvailability: [
         { dayOfWeek: 1, blockId: 'B1', labId: 'electronica' },
+        { dayOfWeek: 1, blockId: 'B2', labId: 'electronica' },
         { dayOfWeek: 1, blockId: 'B3', labId: 'electronica' },
-        { dayOfWeek: 3, blockId: 'B1', labId: 'electronica' },
-        { dayOfWeek: 5, blockId: 'B7', labId: 'electronica' },
-        { dayOfWeek: 5, blockId: 'B9', labId: 'electronica' },
+        { dayOfWeek: 1, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 1, blockId: 'B5', labId: 'electronica' },
+        { dayOfWeek: 1, blockId: 'B6', labId: 'electronica' },
+        { dayOfWeek: 2, blockId: 'B1', labId: 'mecatronica' },
+        { dayOfWeek: 2, blockId: 'B2', labId: 'automatizacion' },
+        { dayOfWeek: 2, blockId: 'B3', labId: 'automatizacion' },
+        { dayOfWeek: 2, blockId: 'B4', labId: 'mecatronica' },
+        { dayOfWeek: 2, blockId: 'B5', labId: 'electronica' },
+        { dayOfWeek: 2, blockId: 'B6', labId: 'electronica' },
+        { dayOfWeek: 3, blockId: 'B3', labId: 'electronica' },
+        { dayOfWeek: 3, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B5', labId: 'electronica' },
+        { dayOfWeek: 3, blockId: 'B6', labId: 'electronica' },
+        { dayOfWeek: 3, blockId: 'B7', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B8', labId: 'electronica' },
+        { dayOfWeek: 4, blockId: 'B1', labId: 'automatizacion' },
+        { dayOfWeek: 4, blockId: 'B2', labId: 'electronica' },
+        { dayOfWeek: 4, blockId: 'B3', labId: 'electronica' },
+        { dayOfWeek: 4, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 4, blockId: 'B5', labId: 'mecatronica' },
+        { dayOfWeek: 4, blockId: 'B6', labId: 'mecatronica' },
+        { dayOfWeek: 4, blockId: 'B7', labId: 'automatizacion' },
       ],
     },
     {
@@ -296,13 +336,33 @@ function buildInitialDatabase(): LabHubDatabase {
       email: 'fernando.alva@upn.edu.pe',
       username: 'fernando.alva@upn.edu.pe',
       avatarInitials: 'LR',
-      badgeColor: '#059669',
+      badgeColor: '#ea580c',
       active: true,
       weeklyAvailability: [
+        { dayOfWeek: 1, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 1, blockId: 'B5', labId: 'mecatronica' },
+        { dayOfWeek: 1, blockId: 'B6', labId: 'mecatronica' },
+        { dayOfWeek: 1, blockId: 'B7', labId: 'automatizacion' },
+        { dayOfWeek: 1, blockId: 'B8', labId: 'automatizacion' },
+        { dayOfWeek: 1, blockId: 'B9', labId: 'mecatronica' },
+        { dayOfWeek: 2, blockId: 'B2', labId: 'automatizacion' },
+        { dayOfWeek: 2, blockId: 'B3', labId: 'automatizacion' },
         { dayOfWeek: 2, blockId: 'B4', labId: 'mecatronica' },
-        { dayOfWeek: 3, blockId: 'B2', labId: 'mecatronica' },
+        { dayOfWeek: 2, blockId: 'B5', labId: 'mecatronica' },
+        { dayOfWeek: 3, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B5', labId: 'mecatronica' },
+        { dayOfWeek: 3, blockId: 'B6', labId: 'mecatronica' },
+        { dayOfWeek: 3, blockId: 'B7', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B8', labId: 'mecatronica' },
+        { dayOfWeek: 3, blockId: 'B9', labId: 'mecatronica' },
+        { dayOfWeek: 4, blockId: 'B2', labId: 'mecatronica' },
+        { dayOfWeek: 4, blockId: 'B3', labId: 'mecatronica' },
+        { dayOfWeek: 4, blockId: 'B4', labId: 'mecatronica' },
         { dayOfWeek: 4, blockId: 'B5', labId: 'mecatronica' },
-        { dayOfWeek: 4, blockId: 'B6', labId: 'mecatronica' },
+        { dayOfWeek: 5, blockId: 'B1', labId: 'mecatronica' },
+        { dayOfWeek: 5, blockId: 'B2', labId: 'automatizacion' },
+        { dayOfWeek: 5, blockId: 'B3', labId: 'automatizacion' },
+        { dayOfWeek: 5, blockId: 'B4', labId: 'automatizacion' },
         { dayOfWeek: 5, blockId: 'B5', labId: 'mecatronica' },
       ],
     },
@@ -321,14 +381,32 @@ function buildInitialDatabase(): LabHubDatabase {
       email: 'saul.linares@upn.edu.pe',
       username: 'saul.linares@upn.edu.pe',
       avatarInitials: 'SL',
-      badgeColor: '#7c3aed',
+      badgeColor: '#ec4899',
       active: true,
       weeklyAvailability: [
-        { dayOfWeek: 4, blockId: 'B4', labId: 'mecatronica' },
-        { dayOfWeek: 5, blockId: 'B1', labId: 'mecatronica' },
-        { dayOfWeek: 5, blockId: 'B5', labId: 'automatizacion' },
-        { dayOfWeek: 5, blockId: 'B6', labId: 'automatizacion' },
-        { dayOfWeek: 6, blockId: 'B2', labId: 'mecatronica' },
+        { dayOfWeek: 1, blockId: 'B2', labId: 'automatizacion' },
+        { dayOfWeek: 1, blockId: 'B3', labId: 'electronica' },
+        { dayOfWeek: 1, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 1, blockId: 'B5', labId: 'automatizacion' },
+        { dayOfWeek: 1, blockId: 'B6', labId: 'automatizacion' },
+        { dayOfWeek: 2, blockId: 'B1', labId: 'mecatronica' },
+        { dayOfWeek: 2, blockId: 'B2', labId: 'automatizacion' },
+        { dayOfWeek: 2, blockId: 'B3', labId: 'automatizacion' },
+        { dayOfWeek: 2, blockId: 'B4', labId: 'mecatronica' },
+        { dayOfWeek: 2, blockId: 'B5', labId: 'automatizacion' },
+        { dayOfWeek: 2, blockId: 'B6', labId: 'automatizacion' },
+        { dayOfWeek: 2, blockId: 'B7', labId: 'automatizacion' },
+        { dayOfWeek: 2, blockId: 'B8', labId: 'automatizacion' },
+        { dayOfWeek: 2, blockId: 'B9', labId: 'mecatronica' },
+        { dayOfWeek: 3, blockId: 'B2', labId: 'mecatronica' },
+        { dayOfWeek: 3, blockId: 'B3', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B4', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B5', labId: 'automatizacion' },
+        { dayOfWeek: 3, blockId: 'B6', labId: 'automatizacion' },
+        { dayOfWeek: 6, blockId: 'B5', labId: 'automatizacion' },
+        { dayOfWeek: 6, blockId: 'B6', labId: 'automatizacion' },
+        { dayOfWeek: 6, blockId: 'B7', labId: 'mecatronica' },
+        { dayOfWeek: 6, blockId: 'B8', labId: 'automatizacion' },
       ],
     },
   ];
@@ -799,6 +877,22 @@ export function normalizeDatabase(db: LabHubDatabase): LabHubDatabase {
     db.teachersCatalog = DEFAULT_TEACHERS_CATALOG;
   }
 
+  // Normalizar disponibilidad de asesores oficiales si tienen menos de 20 bloques
+  const initialAdvisors = buildInitialDatabase().advisors;
+  if (!Array.isArray(db.advisors) || db.advisors.length === 0) {
+    db.advisors = initialAdvisors;
+  } else {
+    for (const adv of db.advisors) {
+      if (!Array.isArray(adv.weeklyAvailability) || adv.weeklyAvailability.length < 20) {
+        const official = initialAdvisors.find((a) => a.id === adv.id);
+        if (official) {
+          adv.weeklyAvailability = official.weeklyAvailability;
+          adv.badgeColor = official.badgeColor;
+        }
+      }
+    }
+  }
+
   return db;
 }
 
@@ -956,7 +1050,20 @@ export const dbRepository = {
       const current = await readDatabaseRaw();
       const merged: LabHubDatabase = {
         labs: Array.isArray(remoteDb.labs) && remoteDb.labs.length > 0 ? remoteDb.labs : current.labs,
-        advisors: Array.isArray(remoteDb.advisors) && remoteDb.advisors.length > 0 ? remoteDb.advisors : current.advisors,
+        advisors: (() => {
+          const list = Array.isArray(remoteDb.advisors) && remoteDb.advisors.length > 0 ? remoteDb.advisors : current.advisors;
+          const initialAdvisors = buildInitialDatabase().advisors;
+          for (const adv of list) {
+            if (!Array.isArray(adv.weeklyAvailability) || adv.weeklyAvailability.length < 20) {
+              const official = initialAdvisors.find((a) => a.id === adv.id);
+              if (official) {
+                adv.weeklyAvailability = official.weeklyAvailability;
+                adv.badgeColor = official.badgeColor;
+              }
+            }
+          }
+          return list;
+        })(),
         recurringClasses:
           Array.isArray(remoteDb.recurringClasses) && remoteDb.recurringClasses.length >= current.recurringClasses.length
             ? remoteDb.recurringClasses

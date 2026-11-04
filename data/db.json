@@ -65,18 +65,23 @@
       "email": "martin.cernaa@gmail.com",
       "username": "martin.cernaa@gmail.com",
       "avatarInitials": "ML",
-      "badgeColor": "#d97706",
+      "badgeColor": "#2563eb",
       "active": true,
       "weeklyAvailability": [
         {
-          "dayOfWeek": 1,
-          "blockId": "B4",
-          "labId": "automatizacion"
+          "dayOfWeek": 3,
+          "blockId": "B1",
+          "labId": "electronica"
         },
         {
-          "dayOfWeek": 1,
-          "blockId": "B7",
-          "labId": "automatizacion"
+          "dayOfWeek": 3,
+          "blockId": "B2",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B3",
+          "labId": "electronica"
         },
         {
           "dayOfWeek": 3,
@@ -85,12 +90,107 @@
         },
         {
           "dayOfWeek": 3,
+          "blockId": "B5",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B6",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B2",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B3",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B4",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B5",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B6",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 4,
           "blockId": "B7",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B8",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B9",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B2",
           "labId": "automatizacion"
         },
         {
           "dayOfWeek": 5,
           "blockId": "B3",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B4",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B5",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B6",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B7",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B8",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 6,
+          "blockId": "B1",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 6,
+          "blockId": "B2",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 6,
+          "blockId": "B3",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 6,
+          "blockId": "B4",
           "labId": "automatizacion"
         }
       ]
@@ -110,7 +210,7 @@
       "email": "juan.gomez@upn.edu.pe",
       "username": "juan.gomez@upn.edu.pe",
       "avatarInitials": "JG",
-      "badgeColor": "#0284c7",
+      "badgeColor": "#16a34a",
       "active": true,
       "weeklyAvailability": [
         {
@@ -120,23 +220,123 @@
         },
         {
           "dayOfWeek": 1,
+          "blockId": "B2",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B3",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B4",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B5",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B6",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B1",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B2",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B3",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B4",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B5",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B6",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 3,
           "blockId": "B3",
           "labId": "electronica"
         },
         {
           "dayOfWeek": 3,
-          "blockId": "B1",
+          "blockId": "B4",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B5",
           "labId": "electronica"
         },
         {
-          "dayOfWeek": 5,
+          "dayOfWeek": 3,
+          "blockId": "B6",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 3,
           "blockId": "B7",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B8",
           "labId": "electronica"
         },
         {
-          "dayOfWeek": 5,
-          "blockId": "B9",
+          "dayOfWeek": 4,
+          "blockId": "B1",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B2",
           "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B3",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B4",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B5",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B6",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B7",
+          "labId": "automatizacion"
         }
       ]
     },
@@ -155,17 +355,102 @@
       "email": "fernando.alva@upn.edu.pe",
       "username": "fernando.alva@upn.edu.pe",
       "avatarInitials": "LR",
-      "badgeColor": "#059669",
+      "badgeColor": "#ea580c",
       "active": true,
       "weeklyAvailability": [
+        {
+          "dayOfWeek": 1,
+          "blockId": "B4",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B5",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B6",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B7",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B8",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B9",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B2",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B3",
+          "labId": "automatizacion"
+        },
         {
           "dayOfWeek": 2,
           "blockId": "B4",
           "labId": "mecatronica"
         },
         {
+          "dayOfWeek": 2,
+          "blockId": "B5",
+          "labId": "mecatronica"
+        },
+        {
           "dayOfWeek": 3,
+          "blockId": "B4",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B5",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B6",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B7",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B8",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B9",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 4,
           "blockId": "B2",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B3",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 4,
+          "blockId": "B4",
           "labId": "mecatronica"
         },
         {
@@ -174,9 +459,24 @@
           "labId": "mecatronica"
         },
         {
-          "dayOfWeek": 4,
-          "blockId": "B6",
+          "dayOfWeek": 5,
+          "blockId": "B1",
           "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B2",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B3",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 5,
+          "blockId": "B4",
+          "labId": "automatizacion"
         },
         {
           "dayOfWeek": 5,
@@ -200,33 +500,123 @@
       "email": "saul.linares@upn.edu.pe",
       "username": "saul.linares@upn.edu.pe",
       "avatarInitials": "SL",
-      "badgeColor": "#7c3aed",
+      "badgeColor": "#ec4899",
       "active": true,
       "weeklyAvailability": [
         {
-          "dayOfWeek": 4,
+          "dayOfWeek": 1,
+          "blockId": "B2",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 1,
+          "blockId": "B3",
+          "labId": "electronica"
+        },
+        {
+          "dayOfWeek": 1,
           "blockId": "B4",
-          "labId": "mecatronica"
+          "labId": "automatizacion"
         },
         {
-          "dayOfWeek": 5,
-          "blockId": "B1",
-          "labId": "mecatronica"
-        },
-        {
-          "dayOfWeek": 5,
+          "dayOfWeek": 1,
           "blockId": "B5",
           "labId": "automatizacion"
         },
         {
-          "dayOfWeek": 5,
+          "dayOfWeek": 1,
+          "blockId": "B6",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B1",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B2",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B3",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B4",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B5",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B6",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B7",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B8",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 2,
+          "blockId": "B9",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B2",
+          "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B3",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B4",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 3,
+          "blockId": "B5",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 3,
           "blockId": "B6",
           "labId": "automatizacion"
         },
         {
           "dayOfWeek": 6,
-          "blockId": "B2",
+          "blockId": "B5",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 6,
+          "blockId": "B6",
+          "labId": "automatizacion"
+        },
+        {
+          "dayOfWeek": 6,
+          "blockId": "B7",
           "labId": "mecatronica"
+        },
+        {
+          "dayOfWeek": 6,
+          "blockId": "B8",
+          "labId": "automatizacion"
         }
       ]
     }

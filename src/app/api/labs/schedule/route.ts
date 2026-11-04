@@ -76,6 +76,15 @@ export async function GET(request: NextRequest) {
         const occupiedGroups = activeReservations.length;
         const availableGroups = Math.max(0, lab.maxSimultaneousGroups - occupiedGroups);
 
+        // Cruce con turno de asistentes
+        const hasAssistantOnDuty = db.advisors.some(
+          (adv) =>
+            adv.active &&
+            adv.weeklyAvailability.some(
+              (av) => av.dayOfWeek === day.dayOfWeek && av.blockId === block.id
+            )
+        );
+
         let state: LabSlotState = 'DISPONIBLE';
 
         if (manualBlock) {
@@ -84,6 +93,8 @@ export async function GET(request: NextRequest) {
           state = 'CLASE';
         } else if (isPast) {
           state = 'PASADO';
+        } else if (!hasAssistantOnDuty) {
+          state = 'BLOQUEADO';
         } else if (availableGroups <= 0) {
           state = 'COMPLETO';
         } else {
@@ -119,6 +130,8 @@ export async function GET(request: NextRequest) {
         if (manualBlock) {
           slotItem.blockReason = manualBlock.reason;
           slotItem.blockRecordId = manualBlock.id;
+        } else if (!classSlot && !isPast && !hasAssistantOnDuty) {
+          slotItem.blockReason = 'Sin asistente en turno';
         }
 
         slots.push(slotItem);
