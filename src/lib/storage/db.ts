@@ -574,7 +574,7 @@ function buildInitialDatabase(): LabHubDatabase {
     id: 'loan-sample-001',
     code: 'EQP-2026-0001',
     labId: 'electronica',
-    teacherName: 'Dra. Elena Patricia Vargas Soto',
+    teacherName: 'Kelly Lidia León Cruz',
     cycle: 'Ciclo VI',
     courseProgram: 'Ingeniería Electrónica - Circuitos II',
     attendedByAdvisorId: 'adv-2',
@@ -613,7 +613,7 @@ function buildInitialDatabase(): LabHubDatabase {
     code: '3DP-2026-0001',
     studentFullName: 'Giacomo Pierro Rossi Navarro',
     upnCode: 'N00178302',
-    teacherName: 'Dr. Marco Antonio Villanueva Castro',
+    teacherName: 'Fernando Aristides Saldaña Milla',
     course: 'Robótica Industrial y Móvil',
     nrc: '5840',
     files: [
@@ -662,7 +662,7 @@ function buildInitialDatabase(): LabHubDatabase {
     code: '3DP-2026-0002',
     studentFullName: 'Andrea Nicole Tapia Salcedo',
     upnCode: 'N00192348',
-    teacherName: 'Mg. Diana Carolina Salazar Torres',
+    teacherName: 'Lenin Araujo Castillo',
     course: 'Manufactura Asistida por Computadora (CAM)',
     nrc: '5844',
     files: [
@@ -786,6 +786,18 @@ export function normalizeDatabase(db: LabHubDatabase): LabHubDatabase {
   if (gc.syncStlFilesToDrive === undefined) gc.syncStlFilesToDrive = true;
   if (gc.syncRecordsToSheets === undefined) gc.syncRecordsToSheets = true;
   if (gc.syncCalendarAndEmail === undefined) gc.syncCalendarAndEmail = true;
+
+  const hasOldFictitiousTeachers =
+    Array.isArray(db.teachersCatalog) &&
+    db.teachersCatalog.some(
+      (t) =>
+        t.includes('Carlos Alberto Mendoza Ríos') ||
+        t.includes('Elena Patricia Vargas Soto') ||
+        t.includes('Marco Antonio Villanueva Castro')
+    );
+  if (!Array.isArray(db.teachersCatalog) || db.teachersCatalog.length === 0 || hasOldFictitiousTeachers) {
+    db.teachersCatalog = DEFAULT_TEACHERS_CATALOG;
+  }
 
   return db;
 }
@@ -954,7 +966,26 @@ export const dbRepository = {
         advisories: Array.isArray(remoteDb.advisories) ? remoteDb.advisories : current.advisories,
         loans: Array.isArray(remoteDb.loans) ? remoteDb.loans : current.loans,
         prints: Array.isArray(remoteDb.prints) ? remoteDb.prints : current.prints,
-        teachersCatalog: Array.isArray(remoteDb.teachersCatalog) ? remoteDb.teachersCatalog : current.teachersCatalog,
+        teachersCatalog: (() => {
+          if (!Array.isArray(remoteDb.teachersCatalog) || remoteDb.teachersCatalog.length === 0) {
+            return current.teachersCatalog && current.teachersCatalog.length > 0
+              ? current.teachersCatalog
+              : DEFAULT_TEACHERS_CATALOG;
+          }
+          const hasOldFictitious = remoteDb.teachersCatalog.some((t) =>
+            t.includes('Carlos Alberto Mendoza Ríos') ||
+            t.includes('Elena Patricia Vargas Soto') ||
+            t.includes('Roberto Javier Paredes Luna') ||
+            t.includes('Marco Antonio Villanueva Castro')
+          );
+          const hasOfficialTeachers = DEFAULT_TEACHERS_CATALOG.every((t) =>
+            remoteDb.teachersCatalog!.includes(t)
+          );
+          if (hasOldFictitious || !hasOfficialTeachers) {
+            return DEFAULT_TEACHERS_CATALOG;
+          }
+          return remoteDb.teachersCatalog;
+        })(),
         googleConfig: remoteDb.googleConfig ? { ...current.googleConfig, ...remoteDb.googleConfig } : current.googleConfig,
         adminUsers: Array.isArray(remoteDb.adminUsers) && remoteDb.adminUsers.length > 0 ? remoteDb.adminUsers : current.adminUsers,
         sequences: remoteDb.sequences || current.sequences,

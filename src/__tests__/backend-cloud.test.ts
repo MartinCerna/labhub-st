@@ -13,7 +13,7 @@ describe('Suite de Pruebas Backend — Documentos, OneDrive y Almacenamiento en 
     id: 'test-loan-123',
     code: 'EQP-2026-9999',
     labId: 'automatizacion',
-    teacherName: 'Ing. Carlos Alberto Mendoza Ríos',
+    teacherName: 'Fernando Aristides Saldaña Milla',
     cycle: 'Ciclo VII',
     courseProgram: 'Ingeniería Mecatrónica - Automatización Industrial',
     attendedByAdvisorId: 'adv-1',
@@ -67,7 +67,7 @@ describe('Suite de Pruebas Backend — Documentos, OneDrive y Almacenamiento en 
       expect(html).toContain('Entrega de Materiales y/o Equipos');
       expect(html).toContain('EQP-2026-9999');
       expect(html).toContain('Laboratorio de Automatización');
-      expect(html).toContain('Ing. Carlos Alberto Mendoza Ríos');
+      expect(html).toContain('Fernando Aristides Saldaña Milla');
       expect(html).toContain('Módulo PLC Siemens S7-1200 CPU 1214C');
       expect(html).toContain('UPN-PAT-PLC-001');
       expect(html).toContain('Juan Diego Pérez Sánchez');

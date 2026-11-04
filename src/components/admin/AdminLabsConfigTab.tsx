@@ -10,7 +10,7 @@ import {
   DayOfWeek,
   ComputedLabSlot,
 } from '@/types/labhub';
-import { TIME_BLOCKS, DAYS_OF_WEEK } from '@/constants/schedule';
+import { TIME_BLOCKS, DAYS_OF_WEEK, DEFAULT_TEACHERS_CATALOG } from '@/constants/schedule';
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/shared/ToastProvider';
 import {
@@ -53,11 +53,19 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [selectedSlotDetails, setSelectedSlotDetails] = useState<ComputedLabSlot | null>(null);
 
+  // Catálogo de docentes con fallback al catálogo oficial
+  const teachersList =
+    dashboard.teachersCatalog && dashboard.teachersCatalog.length > 0
+      ? dashboard.teachersCatalog
+      : DEFAULT_TEACHERS_CATALOG;
+
   // Formulario de Nueva Clase
   const [newClassDay, setNewClassDay] = useState<DayOfWeek>(1);
   const [newClassBlock, setNewClassBlock] = useState<TimeBlockId>('B1');
   const [newClassCourse, setNewClassCourse] = useState('');
-  const [newClassTeacher, setNewClassTeacher] = useState('');
+  const [newClassTeacher, setNewClassTeacher] = useState(DEFAULT_TEACHERS_CATALOG[0] || '');
+  const [isCustomTeacher, setIsCustomTeacher] = useState(false);
+  const [customTeacher, setCustomTeacher] = useState('');
   const [newClassNrc, setNewClassNrc] = useState('');
   const [savingClass, setSavingClass] = useState(false);
 
@@ -94,6 +102,12 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
     loadSchedule();
   }, [loadSchedule]);
 
+  const handleCloseClassModal = () => {
+    setShowClassModal(false);
+    setIsCustomTeacher(false);
+    setCustomTeacher('');
+  };
+
   // Guardar nueva capacidad máxima de grupos
   const handleSaveCapacity = async () => {
     if (customCapacity < 1 || customCapacity > 20) {
@@ -122,7 +136,11 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
   // Crear clase regular
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClassCourse.trim() || !newClassTeacher.trim() || !newClassNrc.trim()) {
+    const finalTeacher = isCustomTeacher
+      ? customTeacher.trim()
+      : (newClassTeacher.trim() || teachersList[0] || '');
+
+    if (!newClassCourse.trim() || !finalTeacher || !newClassNrc.trim()) {
       showToast('Por favor completa todos los campos de la clase.', 'warning');
       return;
     }
@@ -134,13 +152,15 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
         dayOfWeek: newClassDay,
         blockId: newClassBlock,
         courseName: newClassCourse.trim(),
-        teacherName: newClassTeacher.trim(),
+        teacherName: finalTeacher,
         nrc: newClassNrc.trim(),
       });
       showToast('Clase regular guardada exitosamente.', 'success');
       setShowClassModal(false);
       setNewClassCourse('');
-      setNewClassTeacher('');
+      setNewClassTeacher(teachersList[0] || '');
+      setIsCustomTeacher(false);
+      setCustomTeacher('');
       setNewClassNrc('');
       await onRefresh();
       await loadSchedule();
@@ -638,7 +658,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
               </h3>
               <button
                 type="button"
-                onClick={() => setShowClassModal(false)}
+                onClick={handleCloseClassModal}
                 className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
               >
                 <X className="w-5 h-5" />
@@ -700,20 +720,44 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                 <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                   Docente a Cargo
                 </label>
-                <input
-                  type="text"
-                  required
-                  list="teachers-list"
-                  placeholder="ej. Ing. Carlos Mendoza Ríos"
-                  value={newClassTeacher}
-                  onChange={(e) => setNewClassTeacher(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
-                />
-                <datalist id="teachers-list">
-                  {dashboard.teachersCatalog.map((t, idx) => (
-                    <option key={idx} value={t} />
-                  ))}
-                </datalist>
+                {!isCustomTeacher ? (
+                  <select
+                    value={newClassTeacher || teachersList[0] || ''}
+                    onChange={(e) => {
+                      if (e.target.value === '__OTHER__') {
+                        setIsCustomTeacher(true);
+                      } else {
+                        setNewClassTeacher(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                  >
+                    {teachersList.map((t, idx) => (
+                      <option key={idx} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                    <option value="__OTHER__">+ Escribir otro docente...</option>
+                  </select>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Nombre del Docente"
+                      value={customTeacher}
+                      onChange={(e) => setCustomTeacher(e.target.value)}
+                      className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomTeacher(false)}
+                      className="px-2.5 py-2 text-[11px] font-semibold bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-lg text-slate-700 dark:text-slate-200 transition-colors"
+                    >
+                      Lista
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -733,7 +777,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
               <div className="flex items-center justify-end gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setShowClassModal(false)}
+                  onClick={handleCloseClassModal}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
                 >
                   Cancelar

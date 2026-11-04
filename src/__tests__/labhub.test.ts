@@ -545,7 +545,7 @@ endsolid test_cube`;
       });
 
       expect(json.teachers.length).toBeGreaterThan(0);
-      expect(json.teachers).toContain('Ing. Carlos Alberto Mendoza Ríos');
+      expect(json.teachers).toContain('Fernando Aristides Saldaña Milla');
     });
 
     it('GET /api/labs/schedule debe retornar CLASE para los horarios ocupados del laboratorio', async () => {
@@ -702,7 +702,7 @@ endsolid test_cube`;
 
       const loanPayload = {
         labId: 'electronica',
-        teacherName: 'Dra. Elena Patricia Vargas Soto',
+        teacherName: 'Kelly Lidia León Cruz',
         cycle: 'Ciclo VI',
         courseProgram: 'Ingeniería Electrónica - Circuitos II',
         attendedByAdvisorId: 'adv-2',
@@ -785,7 +785,7 @@ endsolid test_cube`;
       const invalidFd = new FormData();
       invalidFd.append('studentFullName', 'Estudiante 3D QA');
       invalidFd.append('upnCode', 'N00334455');
-      invalidFd.append('teacherName', 'Dr. Marco Villanueva');
+      invalidFd.append('teacherName', 'Fernando Aristides Saldaña Milla');
       invalidFd.append('course', 'Robótica');
       invalidFd.append('nrc', '5840');
       const textFile = new File(['texto plano'], 'modelo.txt', { type: 'text/plain' });
@@ -807,7 +807,7 @@ endsolid test_cube`;
       const validFd = new FormData();
       validFd.append('studentFullName', 'Estudiante 3D QA');
       validFd.append('upnCode', 'N00334455');
-      validFd.append('teacherName', 'Dr. Marco Antonio Villanueva Castro');
+      validFd.append('teacherName', 'Fernando Aristides Saldaña Milla');
       validFd.append('course', 'Robótica Industrial y Móvil');
       validFd.append('nrc', '5840');
       validFd.append('file', validFile);
