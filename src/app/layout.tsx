@@ -45,9 +45,6 @@ export default function RootLayout({
                   Universidad Privada del Norte (UPN) • Campus Trujillo - San Isidro • Laboratorios de Ingeniería (Automatización, Electrónica y Mecatrónica)
                 </div>
               </div>
-              <div className="text-[11px] font-medium text-slate-400 shrink-0">
-                Arquitectura y Desarrollo por <span className="text-white font-bold">Martín Aarón León Cerna</span>
-              </div>
             </div>
           </footer>
         </ToastProvider>
