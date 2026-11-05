@@ -25,6 +25,7 @@ import {
   Print3DStatus,
   RecurringClassSlot,
   SlotBlock,
+  TimeBlockId,
 } from '@/types/labhub';
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -192,17 +193,44 @@ export const apiClient = {
     }),
 
   createSlotBlock: (
-    payload: Omit<SlotBlock, 'id' | 'createdAt' | 'createdBy'>
+    payload: {
+      targetType: 'LAB' | 'ADVISOR';
+      targetId: string;
+      date?: string;
+      blockId?: TimeBlockId;
+      blockIds?: TimeBlockId[];
+      dates?: string[];
+      fullDay?: boolean;
+      slots?: Array<{ date: string; blockId: TimeBlockId }>;
+      reason: string;
+    }
   ) =>
-    requestJson<{ slotBlock: SlotBlock }>('/api/admin/blocks', {
+    requestJson<{ slotBlock: SlotBlock; slotBlocks: SlotBlock[]; count: number }>('/api/admin/blocks', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
   deleteSlotBlock: (id: string) =>
-    requestJson<{ ok: boolean }>(`/api/admin/blocks?id=${encodeURIComponent(id)}`, {
+    requestJson<{ ok: boolean; deletedCount?: number }>(`/api/admin/blocks?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
+
+  deleteSlotBlocksBulk: (params: {
+    ids?: string[];
+    targetType?: 'LAB' | 'ADVISOR';
+    targetId?: string;
+    date?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params.ids && params.ids.length > 0) qs.set('ids', params.ids.join(','));
+    if (params.targetType) qs.set('targetType', params.targetType);
+    if (params.targetId) qs.set('targetId', params.targetId);
+    if (params.date) qs.set('date', params.date);
+    return requestJson<{ ok: boolean; deletedCount: number }>(
+      `/api/admin/blocks?${qs.toString()}`,
+      { method: 'DELETE' }
+    );
+  },
 
   updateAdvisorProfile: (
     advisorId: string,

@@ -10,7 +10,13 @@ import {
   TimeBlockId,
   LabId,
 } from '@/types/labhub';
-import { TIME_BLOCKS, DAYS_OF_WEEK, LAB_MAP } from '@/constants/schedule';
+import {
+  TIME_BLOCKS,
+  TIME_BLOCK_MAP,
+  DAYS_OF_WEEK,
+  LAB_MAP,
+  getWeekDaysForOffset,
+} from '@/constants/schedule';
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/shared/ToastProvider';
 import {
@@ -37,6 +43,18 @@ interface AdminAdvisorsConfigTabProps {
   dashboard: AdminDashboardSummary;
   currentUser?: AdminSessionUser;
   onRefresh: () => Promise<void>;
+}
+
+function getDayOfWeekFromDateString(dateStr: string): DayOfWeek | null {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length !== 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return null;
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  const jsDay = d.getDay(); // 0 = Dom, 1 = Lun, ..., 6 = Sab
+  if (jsDay >= 1 && jsDay <= 6) {
+    return jsDay as DayOfWeek;
+  }
+  return null;
 }
 
 export function AdminAdvisorsConfigTab({
@@ -75,11 +93,16 @@ export function AdminAdvisorsConfigTab({
   const [availability, setAvailability] = useState<AdvisorAvailabilitySlot[]>([]);
   const [savingAvailability, setSavingAvailability] = useState(false);
 
-  // Estado de nuevo bloqueo por fecha
+  // Estado de nuevo bloqueo por fecha y selección múltiple de turnos
   const [blockDate, setBlockDate] = useState('');
-  const [blockTimeBlock, setBlockTimeBlock] = useState<TimeBlockId>('B1');
+  const [selectedBlockIds, setSelectedBlockIds] = useState<TimeBlockId[]>(['B1']);
   const [blockReason, setBlockReason] = useState('');
   const [savingBlock, setSavingBlock] = useState(false);
+  const [deletingBulkDate, setDeletingBulkDate] = useState<string | null>(null);
+
+  const currentWeek = getWeekDaysForOffset(0);
+  const dayOfWeekForDate = getDayOfWeekFromDateString(blockDate);
+  const isFullDaySelected = selectedBlockIds.length === TIME_BLOCKS.length;
 
   // Modal para crear nuevo usuario / asesor
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -218,7 +241,39 @@ export function AdminAdvisorsConfigTab({
     }
   };
 
-  // Crear bloqueo extraordinario para este asesor
+  // Alternar selección de un bloque horario en el formulario de bloqueo
+  const toggleBlock = (blockId: TimeBlockId) => {
+    setSelectedBlockIds((prev) =>
+      prev.includes(blockId) ? prev.filter((id) => id !== blockId) : [...prev, blockId]
+    );
+  };
+
+  // Seleccionar automáticamente los bloques en los que el asesor tiene turnos ese día
+  const handleSelectMyDaySlots = () => {
+    if (!blockDate) {
+      showToast('Selecciona primero una fecha para identificar tus turnos de ese día.', 'info');
+      return;
+    }
+    if (!dayOfWeekForDate) {
+      showToast(
+        'La fecha seleccionada no corresponde a un día de atención académica (Lunes a Sábado).',
+        'warning'
+      );
+      return;
+    }
+    const mySlots = availability
+      .filter((s) => s.dayOfWeek === dayOfWeekForDate)
+      .map((s) => s.blockId);
+
+    if (mySlots.length === 0) {
+      showToast('No tienes turnos de atención configurados en tu horario base para ese día.', 'info');
+      return;
+    }
+    setSelectedBlockIds(mySlots);
+    showToast(`Se seleccionaron tus ${mySlots.length} turno(s) de atención para ese día.`, 'info');
+  };
+
+  // Crear bloqueo extraordinario para este asesor (uno, varios o día completo)
   const handleCreateAdvisorBlock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEditCurrent) {
@@ -226,28 +281,66 @@ export function AdminAdvisorsConfigTab({
       return;
     }
 
-    if (!blockDate || !blockReason.trim()) {
-      showToast('Ingresa fecha y motivo del bloqueo.', 'warning');
+    if (!blockDate || !blockReason.trim() || selectedBlockIds.length === 0) {
+      showToast('Ingresa fecha, motivo y selecciona al menos un bloque horario.', 'warning');
       return;
     }
 
     try {
       setSavingBlock(true);
+      const isFullDay = selectedBlockIds.length === TIME_BLOCKS.length;
       await apiClient.createSlotBlock({
         targetType: 'ADVISOR',
         targetId: selectedAdvisorId,
         date: blockDate,
-        blockId: blockTimeBlock,
+        blockIds: selectedBlockIds,
+        fullDay: isFullDay,
         reason: blockReason.trim(),
       });
-      showToast('Bloqueo de asesor registrado correctamente.', 'success');
+      showToast(
+        isFullDay
+          ? `Día completo (${blockDate}) bloqueado exitosamente (${TIME_BLOCKS.length} bloques).`
+          : `${selectedBlockIds.length} turno(s) bloqueado(s) exitosamente para el ${blockDate}.`,
+        'success'
+      );
       setBlockReason('');
       await onRefresh();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al bloquear turno del asesor.';
+      const msg = err instanceof Error ? err.message : 'Error al bloquear turnos del asesor.';
       showToast(msg, 'error');
     } finally {
       setSavingBlock(false);
+    }
+  };
+
+  // Desbloquear día completo en bloque
+  const handleDeleteBulkDay = async (date: string) => {
+    if (!canEditCurrent) {
+      showToast('No tienes permisos para desbloquear turnos de este asesor.', 'warning');
+      return;
+    }
+
+    if (!confirm(`¿Deseas desbloquear todos los turnos del asesor para la fecha ${date}?`)) {
+      return;
+    }
+
+    try {
+      setDeletingBulkDate(date);
+      const res = await apiClient.deleteSlotBlocksBulk({
+        targetType: 'ADVISOR',
+        targetId: selectedAdvisorId,
+        date,
+      });
+      showToast(
+        `Se desbloquearon ${res.deletedCount || 'todos los'} turnos del día ${date}.`,
+        'success'
+      );
+      await onRefresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al desbloquear el día completo.';
+      showToast(msg, 'error');
+    } finally {
+      setDeletingBulkDate(null);
     }
   };
 
@@ -327,6 +420,19 @@ export function AdminAdvisorsConfigTab({
   const advisorBlocks = dashboard.slotBlocks.filter(
     (b) => b.targetType === 'ADVISOR' && b.targetId === selectedAdvisorId
   );
+
+  // Agrupación de bloqueos por fecha para permitir desbloqueo de día completo
+  const advisorBlocksByDate = advisorBlocks.reduce<Record<string, typeof advisorBlocks>>(
+    (acc, blk) => {
+      if (!acc[blk.date]) {
+        acc[blk.date] = [];
+      }
+      acc[blk.date].push(blk);
+      return acc;
+    },
+    {}
+  );
+  const sortedBlockDates = Object.keys(advisorBlocksByDate).sort((a, b) => b.localeCompare(a));
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -874,114 +980,337 @@ export function AdminAdvisorsConfigTab({
       </div>
 
       {/* SECCIÓN 3: BLOQUEO DE TURNOS PUNTUALES DEL ASESOR */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-4">
-        <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Lock className="w-5 h-5 text-rose-500" />
-            Bloqueos Extraordinarios por Fecha ({selectedAdvisor.fullName})
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Si el asesor tiene una reunión de coordinación, capacitación o ausencia programada en una fecha específica, puedes bloquear su turno aquí sin afectar su horario semanal base.
-          </p>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-6">
+        <div className="pb-3 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Lock className="w-5 h-5 text-rose-500" />
+              Bloqueos Extraordinarios por Fecha ({selectedAdvisor.fullName})
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Si el asesor tiene una reunión de coordinación, capacitación o ausencia programada en una fecha específica, puedes bloquear horarios individuales o días completos sin afectar su horario semanal base.
+            </p>
+          </div>
+          {isFullDaySelected && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-200 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              Modo Día Completo
+            </span>
+          )}
         </div>
 
-        {/* Formulario de bloqueo */}
+        {/* Formulario de bloqueo interactivo */}
         {canEditCurrent && (
-          <form onSubmit={handleCreateAdvisorBlock} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
-                Fecha (YYYY-MM-DD)
-              </label>
-              <input
-                type="date"
-                required
-                value={blockDate}
-                onChange={(e) => setBlockDate(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
-              />
+          <form onSubmit={handleCreateAdvisorBlock} className="space-y-4">
+            {/* Paso 1: Selección de Fecha con botones de acceso rápido */}
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                <label className="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                  1. Fecha del Bloqueo (Semana en curso o personalizada) *
+                </label>
+                {dayOfWeekForDate && (
+                  <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                    Día seleccionado: {DAYS_OF_WEEK.find((d) => d.id === dayOfWeekForDate)?.name}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-slate-400 mr-1 font-medium hidden sm:inline">
+                  Acceso rápido:
+                </span>
+                {currentWeek.days.map((d) => {
+                  const isSelected = blockDate === d.date;
+                  return (
+                    <button
+                      key={d.date}
+                      type="button"
+                      onClick={() => setBlockDate(d.date)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-500/20'
+                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400 hover:bg-slate-100 dark:hover:bg-slate-750'
+                      }`}
+                    >
+                      {d.dayName.slice(0, 3)} {d.date.slice(5)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="max-w-xs pt-1">
+                <input
+                  type="date"
+                  required
+                  value={blockDate}
+                  onChange={(e) => setBlockDate(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 transition-all font-medium"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
-                Bloque Horario
-              </label>
-              <select
-                value={blockTimeBlock}
-                onChange={(e) => setBlockTimeBlock(e.target.value as TimeBlockId)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-amber-500"
-              >
-                {TIME_BLOCKS.map((tb) => (
-                  <option key={tb.id} value={tb.id}>
-                    {tb.id} ({tb.startTime} - {tb.endTime})
-                  </option>
-                ))}
-              </select>
+            {/* Paso 2: Selección de Horarios y Día Completo */}
+            <div className="space-y-2.5 pt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  <span>2. Horarios a Bloquear</span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-[11px]">
+                    {selectedBlockIds.length} de {TIME_BLOCKS.length} seleccionados
+                  </span>
+                </label>
+
+                {/* Botones de acción rápida de turnos */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBlockIds(TIME_BLOCKS.map((tb) => tb.id))}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                      selectedBlockIds.length === TIME_BLOCKS.length
+                        ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-800 shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200'
+                    }`}
+                  >
+                    Bloquear Día Completo (B1 - B9)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSelectMyDaySlots}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 transition-all cursor-pointer"
+                    title="Selecciona los bloques en los que tienes atención semanal regular para el día elegido"
+                  >
+                    Solo Mis Turnos de Ese Día
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBlockIds(['B1', 'B2', 'B3', 'B4'])}
+                    className="px-2 py-1 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 transition-all cursor-pointer"
+                  >
+                    Mañana (B1 - B4)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBlockIds(['B5', 'B6', 'B7', 'B8', 'B9'])}
+                    className="px-2 py-1 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 transition-all cursor-pointer"
+                  >
+                    Tarde/Noche (B5 - B9)
+                  </button>
+
+                  {selectedBlockIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBlockIds([])}
+                      className="px-2 py-1 text-xs font-medium text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-all cursor-pointer underline underline-offset-2"
+                    >
+                      Limpiar selección
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Grilla interactiva de los 9 bloques */}
+              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2">
+                {TIME_BLOCKS.map((tb) => {
+                  const isSelected = selectedBlockIds.includes(tb.id);
+                  const isRegularSlot = dayOfWeekForDate
+                    ? availability.some(
+                        (s) => s.dayOfWeek === dayOfWeekForDate && s.blockId === tb.id
+                      )
+                    : false;
+
+                  return (
+                    <button
+                      key={tb.id}
+                      type="button"
+                      onClick={() => toggleBlock(tb.id)}
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-between min-h-[66px] relative select-none ${
+                        isSelected
+                          ? 'bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-500/20'
+                          : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+                      }`}
+                      title={`Clic para ${isSelected ? 'desmarcar' : 'marcar'} bloque ${tb.id} (${tb.startTime} - ${tb.endTime})`}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-xs">{tb.id}</span>
+                        {isRegularSlot && (
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              isSelected ? 'bg-amber-300' : 'bg-amber-500'
+                            }`}
+                            title="Turno regular de atención este día"
+                          />
+                        )}
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono leading-tight ${
+                          isSelected ? 'text-rose-100' : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        {tb.label}
+                      </span>
+                      {isRegularSlot && (
+                        <span
+                          className={`text-[8px] uppercase font-bold tracking-tight px-1 rounded ${
+                            isSelected
+                              ? 'bg-rose-700 text-rose-200'
+                              : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                          }`}
+                        >
+                          Atención
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
-                Motivo del Bloqueo
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="ej. Reunión de claustro docente"
-                value={blockReason}
-                onChange={(e) => setBlockReason(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
-              />
-            </div>
+            {/* Paso 3: Motivo y Botón de Bloqueo */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="md:col-span-3">
+                <label className="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">
+                  3. Motivo del Bloqueo *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ej. Reunión de claustro docente, capacitación institucional, ausencia justificada"
+                  value={blockReason}
+                  onChange={(e) => setBlockReason(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={savingBlock}
-                className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                {savingBlock ? 'Bloqueando...' : 'Bloquear Turno'}
-              </button>
+              <div>
+                <button
+                  type="submit"
+                  disabled={
+                    savingBlock ||
+                    selectedBlockIds.length === 0 ||
+                    !blockDate ||
+                    !blockReason.trim()
+                  }
+                  className={`w-full py-2.5 rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5 transition-all ${
+                    selectedBlockIds.length === TIME_BLOCKS.length
+                      ? 'bg-rose-700 hover:bg-rose-800 text-white ring-2 ring-rose-500/30'
+                      : 'bg-rose-600 hover:bg-rose-700 text-white'
+                  }`}
+                >
+                  <Lock className="w-4 h-4" />
+                  <span>
+                    {savingBlock
+                      ? 'Bloqueando...'
+                      : selectedBlockIds.length === TIME_BLOCKS.length
+                      ? 'Bloquear Día Completo (9 bloques)'
+                      : selectedBlockIds.length > 0
+                      ? `Bloquear ${selectedBlockIds.length} Turno(s) Seleccionado(s)`
+                      : 'Selecciona al menos un turno'}
+                  </span>
+                </button>
+              </div>
             </div>
           </form>
         )}
 
-        {/* Lista de bloqueos de este asesor */}
-        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-            Bloqueos Registrados ({advisorBlocks.length}):
-          </h4>
+        {/* Lista de bloqueos agrupados por fecha */}
+        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Bloqueos Registrados ({advisorBlocks.length} turnos en {sortedBlockDates.length} fecha(s)):
+            </h4>
+          </div>
 
           {advisorBlocks.length === 0 ? (
             <p className="text-xs text-slate-400 py-3 text-center bg-slate-50 dark:bg-slate-800/40 rounded-xl">
               El asesor no tiene bloqueos de turno extraordinarios.
             </p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {advisorBlocks.map((blk) => (
-                <div
-                  key={blk.id}
-                  className="p-3 rounded-xl bg-rose-50/60 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-center justify-between text-xs"
-                >
-                  <div>
-                    <p className="font-semibold text-rose-900 dark:text-rose-200">
-                      {blk.reason}
-                    </p>
-                    <p className="text-[11px] text-rose-700 dark:text-rose-400">
-                      Fecha: {blk.date} • Bloque {blk.blockId}
-                    </p>
+            <div className="space-y-4">
+              {sortedBlockDates.map((date) => {
+                const dateBlocks = advisorBlocksByDate[date].sort((a, b) =>
+                  a.blockId.localeCompare(b.blockId)
+                );
+                const isEntireDay = dateBlocks.length >= TIME_BLOCKS.length;
+
+                return (
+                  <div
+                    key={date}
+                    className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/30 border border-slate-200/80 dark:border-slate-800 space-y-3"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-rose-500" />
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          Fecha: {date}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isEntireDay
+                              ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-200'
+                              : 'bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          {isEntireDay
+                            ? 'Día Completo Bloqueado (9 turnos)'
+                            : `${dateBlocks.length} turno(s) bloqueado(s)`}
+                        </span>
+                      </div>
+
+                      {canEditCurrent && dateBlocks.length > 1 && (
+                        <button
+                          type="button"
+                          disabled={deletingBulkDate === date}
+                          onClick={() => handleDeleteBulkDay(date)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-rose-700 dark:text-rose-300 bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 transition-colors cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+                          title={`Desbloquear todos los turnos del ${date}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>
+                            {deletingBulkDate === date
+                              ? 'Desbloqueando...'
+                              : `Desbloquear día completo (${date})`}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                      {dateBlocks.map((blk) => (
+                        <div
+                          key={blk.id}
+                          className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/50 flex items-center justify-between text-xs shadow-2xs"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded text-[11px]">
+                                {blk.blockId}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                {TIME_BLOCK_MAP[blk.blockId]?.label}
+                              </span>
+                            </div>
+                            <p className="font-medium text-slate-700 dark:text-slate-300 truncate text-[11px]" title={blk.reason}>
+                              {blk.reason}
+                            </p>
+                          </div>
+                          {canEditCurrent && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAdvisorBlock(blk.id)}
+                              className="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-900/40 rounded-lg transition-colors cursor-pointer shrink-0"
+                              title="Eliminar este bloqueo individual"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  {canEditCurrent && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteAdvisorBlock(blk.id)}
-                      className="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
-                      title="Eliminar bloqueo"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

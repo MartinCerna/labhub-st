@@ -17,10 +17,10 @@ import {
   Settings,
   Calendar,
   Lock,
+  Unlock,
   Plus,
   Trash2,
   Users,
-  AlertTriangle,
   Layers,
   Cpu,
   Wrench,
@@ -29,6 +29,8 @@ import {
   ChevronRight,
   X,
   CheckCircle,
+  MousePointerClick,
+  Sparkles,
 } from 'lucide-react';
 
 interface AdminLabsConfigTabProps {
@@ -53,6 +55,12 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [selectedSlotDetails, setSelectedSlotDetails] = useState<ComputedLabSlot | null>(null);
 
+  // Modo Selección Directa en Grilla para Bloquear
+  const [isBlockSelectionMode, setIsBlockSelectionMode] = useState(false);
+  const [selectedGridSlots, setSelectedGridSlots] = useState<Array<{ date: string; blockId: TimeBlockId }>>([]);
+  const [gridBlockReason, setGridBlockReason] = useState('');
+  const [savingGridBlocks, setSavingGridBlocks] = useState(false);
+
   // Catálogo de docentes con fallback al catálogo oficial
   const teachersList =
     dashboard.teachersCatalog && dashboard.teachersCatalog.length > 0
@@ -69,13 +77,18 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
   const [newClassNrc, setNewClassNrc] = useState('');
   const [savingClass, setSavingClass] = useState(false);
 
-  // Formulario de Bloqueo de Turno
+  // Formulario de Bloqueo de Horarios o Día Completo (Modal)
   const [blockDate, setBlockDate] = useState<string>('');
-  const [blockTimeBlock, setBlockTimeBlock] = useState<TimeBlockId>('B1');
+  const [selectedModalBlocks, setSelectedModalBlocks] = useState<TimeBlockId[]>(TIME_BLOCKS.map((t) => t.id));
   const [blockReason, setBlockReason] = useState<string>('');
   const [savingBlock, setSavingBlock] = useState(false);
 
   const selectedLab = dashboard.labs.find((l) => l.id === selectedLabId) || dashboard.labs[0];
+
+  // Limpiar selección de bloques al cambiar laboratorio o semana
+  useEffect(() => {
+    setSelectedGridSlots([]);
+  }, [selectedLabId, weekOffset]);
 
   // Sincronizar capacidad local con el laboratorio seleccionado
   useEffect(() => {
@@ -188,37 +201,167 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
     }
   };
 
-  // Crear bloqueo de turno
+  // Abrir modal de bloqueo con preselección
+  const handleOpenBlockModal = (defaultDate?: string, fullDay: boolean = true) => {
+    const targetDate = defaultDate || blockDate || scheduleData?.days?.[0]?.date || '';
+    setBlockDate(targetDate);
+    if (fullDay) {
+      setSelectedModalBlocks(TIME_BLOCKS.map((t) => t.id));
+    }
+    setShowBlockModal(true);
+  };
+
+  // Crear bloqueo de turnos o día completo desde el modal
   const handleCreateBlock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!blockDate || !blockReason.trim()) {
-      showToast('Ingresa la fecha y el motivo del bloqueo.', 'warning');
+    if (!blockDate) {
+      showToast('Selecciona una fecha para el bloqueo.', 'warning');
+      return;
+    }
+    if (selectedModalBlocks.length === 0) {
+      showToast('Selecciona al menos un bloque horario o el día completo.', 'warning');
+      return;
+    }
+    if (!blockReason.trim()) {
+      showToast('Ingresa el motivo del bloqueo.', 'warning');
       return;
     }
 
     try {
       setSavingBlock(true);
+      const isFullDay = selectedModalBlocks.length === TIME_BLOCKS.length;
       await apiClient.createSlotBlock({
         targetType: 'LAB',
         targetId: selectedLabId,
         date: blockDate,
-        blockId: blockTimeBlock,
+        blockIds: selectedModalBlocks,
+        fullDay: isFullDay,
         reason: blockReason.trim(),
       });
-      showToast('Turno bloqueado exitosamente.', 'success');
+      showToast(
+        isFullDay
+          ? `Día completo (${blockDate}) bloqueado exitosamente en ${selectedLab.shortName}.`
+          : `${selectedModalBlocks.length} horario(s) bloqueado(s) exitosamente.`,
+        'success'
+      );
       setShowBlockModal(false);
       setBlockReason('');
       await onRefresh();
       await loadSchedule();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al bloquear turno.';
+      const msg = err instanceof Error ? err.message : 'Error al bloquear turnos.';
       showToast(msg, 'error');
     } finally {
       setSavingBlock(false);
     }
   };
 
-  // Eliminar bloqueo de turno
+  // Confirmar bloqueos seleccionados directamente en la grilla
+  const handleConfirmGridBlocks = async () => {
+    if (selectedGridSlots.length === 0) {
+      showToast('Selecciona al menos un bloque en la grilla para bloquear.', 'warning');
+      return;
+    }
+    if (!gridBlockReason.trim()) {
+      showToast('Ingresa el motivo del bloqueo.', 'warning');
+      return;
+    }
+
+    try {
+      setSavingGridBlocks(true);
+      await apiClient.createSlotBlock({
+        targetType: 'LAB',
+        targetId: selectedLabId,
+        slots: selectedGridSlots,
+        reason: gridBlockReason.trim(),
+      });
+      showToast(
+        `Se bloquearon exitosamente ${selectedGridSlots.length} horario(s) seleccionados.`,
+        'success'
+      );
+      setSelectedGridSlots([]);
+      setGridBlockReason('');
+      setIsBlockSelectionMode(false);
+      await onRefresh();
+      await loadSchedule();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al bloquear horarios seleccionados.';
+      showToast(msg, 'error');
+    } finally {
+      setSavingGridBlocks(false);
+    }
+  };
+
+  // Seleccionar o deseleccionar todo un día en la grilla interactiva
+  const handleToggleWholeDayInGrid = (dayDate: string) => {
+    if (!scheduleData) return;
+    const lockableDaySlots = scheduleData.slots.filter(
+      (s) => s.date === dayDate && s.state !== 'BLOQUEADO'
+    );
+    if (lockableDaySlots.length === 0) {
+      showToast('Todos los bloques de este día ya están bloqueados.', 'info');
+      return;
+    }
+
+    const isDayFullySelected = lockableDaySlots.every((s) =>
+      selectedGridSlots.some((sel) => sel.date === dayDate && sel.blockId === s.blockId)
+    );
+
+    if (isDayFullySelected) {
+      // Quitar los bloques de este día
+      setSelectedGridSlots((prev) => prev.filter((sel) => sel.date !== dayDate));
+    } else {
+      // Añadir todos los bloques bloqueables de este día
+      setSelectedGridSlots((prev) => {
+        const remaining = prev.filter((sel) => sel.date !== dayDate);
+        const toAdd = lockableDaySlots.map((s) => ({ date: dayDate, blockId: s.blockId }));
+        return [...remaining, ...toAdd];
+      });
+    }
+  };
+
+  // Seleccionar toda la semana disponible en la grilla interactiva
+  const handleSelectEntireWeek = () => {
+    if (!scheduleData) return;
+    const availableSlots = scheduleData.slots
+      .filter((s) => s.state !== 'BLOQUEADO')
+      .map((s) => ({ date: s.date, blockId: s.blockId }));
+
+    if (availableSlots.length === 0) {
+      showToast('No hay turnos disponibles para seleccionar en esta semana.', 'info');
+      return;
+    }
+    setSelectedGridSlots(availableSlots);
+  };
+
+  // Clic en celda de la grilla horaria
+  const handleCellClick = (slot: ComputedLabSlot) => {
+    if (isBlockSelectionMode) {
+      if (slot.state === 'BLOQUEADO') {
+        showToast('Este bloque ya está bloqueado. Desactiva el modo selección para ver detalles.', 'info');
+        return;
+      }
+      setSelectedGridSlots((prev) => {
+        const exists = prev.some((sel) => sel.date === slot.date && sel.blockId === slot.blockId);
+        if (exists) {
+          return prev.filter((sel) => !(sel.date === slot.date && sel.blockId === slot.blockId));
+        } else {
+          return [...prev, { date: slot.date, blockId: slot.blockId }];
+        }
+      });
+    } else {
+      setSelectedSlotDetails(slot);
+    }
+  };
+
+  // Alternar selección de un bloque en el modal
+  const toggleModalBlock = (blockId: TimeBlockId) => {
+    setSelectedModalBlocks((prev) =>
+      prev.includes(blockId) ? prev.filter((id) => id !== blockId) : [...prev, blockId]
+    );
+  };
+
+  // Eliminar bloqueo de turno individual
   const handleDeleteBlock = async (id: string) => {
     if (!confirm('¿Deseas desbloquear este turno?')) return;
     try {
@@ -228,6 +371,24 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
       await loadSchedule();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al desbloquear turno.';
+      showToast(msg, 'error');
+    }
+  };
+
+  // Desbloquear día completo
+  const handleUnlockWholeDay = async (date: string) => {
+    if (!confirm(`¿Deseas desbloquear todos los turnos registrados para el día ${date}?`)) return;
+    try {
+      await apiClient.deleteSlotBlocksBulk({
+        targetType: 'LAB',
+        targetId: selectedLabId,
+        date,
+      });
+      showToast(`Día ${date} desbloqueado exitosamente.`, 'success');
+      await onRefresh();
+      await loadSchedule();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al desbloquear el día.';
       showToast(msg, 'error');
     }
   };
@@ -252,6 +413,14 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
   const labBlocks = dashboard.slotBlocks.filter(
     (b) => b.targetType === 'LAB' && b.targetId === selectedLabId
   );
+
+  // Agrupar bloqueos por fecha para visualización y acciones masivas
+  const blocksByDate = labBlocks.reduce<Record<string, typeof labBlocks>>((acc, blk) => {
+    if (!acc[blk.date]) acc[blk.date] = [];
+    acc[blk.date].push(blk);
+    return acc;
+  }, {});
+  const uniqueDatesWithBlocks = Object.keys(blocksByDate).sort();
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -345,7 +514,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
             )}
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5 flex-wrap">
             {/* Selector de Semana */}
             <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-medium">
               <button
@@ -378,23 +547,111 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
             <button
               type="button"
               onClick={() => setShowClassModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors shadow-xs cursor-pointer"
             >
               <Plus className="w-4 h-4 text-amber-400" />
               Programar Clase Regular
             </button>
 
-            {/* Botón Bloquear Turno */}
+            {/* Botón Principal: Seleccionar en Grilla para Bloquear */}
             <button
               type="button"
-              onClick={() => setShowBlockModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 border border-rose-200 dark:border-rose-900/50 transition-colors shadow-xs cursor-pointer"
+              onClick={() => {
+                setIsBlockSelectionMode((prev) => !prev);
+                if (isBlockSelectionMode) {
+                  setSelectedGridSlots([]);
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                isBlockSelectionMode
+                  ? 'bg-rose-600 text-white shadow-rose-600/30 ring-2 ring-rose-400'
+                  : 'bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-300 dark:border-rose-900 text-rose-700 dark:text-rose-300'
+              }`}
+            >
+              <MousePointerClick className="w-4 h-4" />
+              {isBlockSelectionMode ? 'Modo Selección Activo' : 'Seleccionar en Grilla para Bloquear'}
+            </button>
+
+            {/* Botón: Bloquear por Fecha / Día Completo (Modal) */}
+            <button
+              type="button"
+              onClick={() => handleOpenBlockModal(undefined, true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors shadow-xs cursor-pointer"
             >
               <Lock className="w-4 h-4 text-rose-500" />
-              Bloquear Turno por Fecha
+              Bloquear por Fecha / Día Completo
             </button>
           </div>
         </div>
+
+        {/* BANNER INTERACTIVO DE MODO SELECCIÓN EN GRILLA */}
+        {isBlockSelectionMode && (
+          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-900/80 text-rose-950 dark:text-rose-100 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2.5 w-2.5 rounded-full bg-rose-600 animate-pulse" />
+                <h4 className="font-bold text-sm text-rose-950 dark:text-rose-200 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-rose-500" />
+                  Modo Selección de Horarios Activo
+                </h4>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-200 dark:bg-rose-900 font-bold text-rose-800 dark:text-rose-200">
+                  {selectedGridSlots.length} seleccionado{selectedGridSlots.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <p className="text-xs text-rose-800 dark:text-rose-300 leading-relaxed max-w-2xl">
+                Haz clic en los bloques horarios que desees bloquear o usa el botón <strong>«+ Día completo»</strong> en la cabecera de cualquier día para seleccionarlo de golpe.
+              </p>
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={handleSelectEntireWeek}
+                  className="text-xs font-bold text-rose-700 dark:text-rose-300 hover:text-rose-900 underline cursor-pointer"
+                >
+                  Seleccionar toda la semana disponible
+                </button>
+                <span className="text-rose-300 dark:text-rose-700">•</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedGridSlots([])}
+                  className="text-xs font-semibold text-rose-700 dark:text-rose-300 hover:text-rose-900 underline cursor-pointer"
+                >
+                  Limpiar selección
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full xl:w-auto shrink-0">
+              <input
+                type="text"
+                placeholder="Motivo del bloqueo (ej. Mantenimiento / Feriado)..."
+                value={gridBlockReason}
+                onChange={(e) => setGridBlockReason(e.target.value)}
+                className="px-3.5 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500 w-full sm:w-72"
+              />
+              <button
+                type="button"
+                disabled={savingGridBlocks || selectedGridSlots.length === 0}
+                onClick={handleConfirmGridBlocks}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                {savingGridBlocks
+                  ? 'Bloqueando...'
+                  : `Confirmar Bloqueo (${selectedGridSlots.length})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBlockSelectionMode(false);
+                  setSelectedGridSlots([]);
+                }}
+                className="px-3 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Salir
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* GRILLA INTERACTIVA 9 BLOQUES x 6 DÍAS */}
         {loadingSchedule ? (
@@ -405,20 +662,81 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
         ) : scheduleData ? (
           <div className="overflow-x-auto pb-2">
             <div className="min-w-[760px]">
-              {/* Cabecera de días */}
+              {/* Cabecera de días con botones de Día Completo */}
               <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-bold uppercase tracking-wider text-slate-500">
-                <div className="py-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg">Bloque Horario</div>
-                {scheduleData.days.map((day) => (
-                  <div
-                    key={day.date}
-                    className="py-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg flex flex-col items-center"
-                  >
-                    <span className="text-slate-800 dark:text-slate-200">{day.dayName}</span>
-                    <span className="text-[10px] font-mono text-slate-400 font-normal">
-                      {day.date.slice(5)}
-                    </span>
-                  </div>
-                ))}
+                <div className="py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex items-center justify-center">
+                  Bloque Horario
+                </div>
+                {scheduleData.days.map((day) => {
+                  const daySlots = scheduleData.slots.filter((s) => s.date === day.date);
+                  const lockableSlots = daySlots.filter((s) => s.state !== 'BLOQUEADO');
+                  const allBlocked = daySlots.length > 0 && daySlots.every((s) => s.state === 'BLOQUEADO');
+                  const isDayFullySelected =
+                    lockableSlots.length > 0 &&
+                    lockableSlots.every((s) =>
+                      selectedGridSlots.some((sel) => sel.date === day.date && sel.blockId === s.blockId)
+                    );
+
+                  return (
+                    <div
+                      key={day.date}
+                      className="py-2 px-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex flex-col items-center justify-between gap-1.5"
+                    >
+                      <div className="flex flex-col items-center">
+                        <span className="text-slate-800 dark:text-slate-200 font-bold">{day.dayName}</span>
+                        <span className="text-[10px] font-mono text-slate-400 font-normal">
+                          {day.date.slice(5)}
+                        </span>
+                      </div>
+
+                      {/* Botón Contextual de Día Completo */}
+                      {isBlockSelectionMode ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleWholeDayInGrid(day.date)}
+                          className={`w-full py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                            isDayFullySelected
+                              ? 'bg-rose-600 text-white shadow-xs'
+                              : 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 hover:bg-rose-200'
+                          }`}
+                          title={isDayFullySelected ? 'Deseleccionar día en grilla' : 'Seleccionar día completo en grilla'}
+                        >
+                          {isDayFullySelected ? (
+                            <>
+                              <CheckCircle className="w-3 h-3" />
+                              <span>✓ Seleccionado</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3 h-3" />
+                              <span>+ Día completo</span>
+                            </>
+                          )}
+                        </button>
+                      ) : allBlocked ? (
+                        <button
+                          type="button"
+                          onClick={() => handleUnlockWholeDay(day.date)}
+                          className="w-full py-1 px-1.5 rounded-lg text-[10px] font-bold bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 transition-all cursor-pointer flex items-center justify-center gap-1"
+                          title="Desbloquear todos los turnos de este día"
+                        >
+                          <Unlock className="w-3 h-3 text-amber-600" />
+                          <span>Desbloquear</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBlockModal(day.date, true)}
+                          className="w-full py-1 px-1.5 rounded-lg text-[10px] font-semibold bg-white dark:bg-slate-700/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-600 dark:text-slate-300 hover:text-rose-600 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1"
+                          title="Bloquear este día completo"
+                        >
+                          <Lock className="w-3 h-3 text-rose-500" />
+                          <span>Bloquear día</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Filas por Bloque */}
@@ -450,17 +768,57 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                         );
                       }
 
+                      // Estado de Selección en Grilla
+                      const isSelectedInGrid = selectedGridSlots.some(
+                        (sel) => sel.date === day.date && sel.blockId === tb.id
+                      );
+
+                      if (isSelectedInGrid) {
+                        return (
+                          <div
+                            key={day.date}
+                            onClick={() => handleCellClick(slot)}
+                            className="p-2 rounded-xl border-2 border-rose-600 ring-2 ring-rose-500/40 bg-rose-100/90 dark:bg-rose-950/80 text-rose-950 dark:text-rose-100 cursor-pointer shadow-md transition-all flex flex-col justify-between"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-700 dark:text-rose-300 flex items-center gap-1">
+                                <CheckCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                                A Bloquear
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-rose-600">✓</span>
+                            </div>
+                            <p className="text-[11px] font-bold text-rose-900 dark:text-rose-200 truncate mt-1">
+                              Seleccionado
+                            </p>
+                            <span className="text-[10px] text-rose-700 dark:text-rose-400">
+                              Clic para quitar
+                            </span>
+                          </div>
+                        );
+                      }
+
                       // Render según estado del bloque
                       if (slot.state === 'CLASE') {
                         return (
                           <div
                             key={day.date}
-                            onClick={() => setSelectedSlotDetails(slot)}
-                            className="p-2 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/60 text-purple-900 dark:text-purple-200 cursor-pointer hover:shadow-xs transition-all flex flex-col justify-between"
+                            onClick={() => handleCellClick(slot)}
+                            className={`p-2 rounded-xl border text-purple-900 dark:text-purple-200 cursor-pointer hover:shadow-xs transition-all flex flex-col justify-between ${
+                              isBlockSelectionMode
+                                ? 'bg-purple-50/70 dark:bg-purple-950/30 border-dashed border-rose-300 dark:border-rose-800 hover:ring-2 hover:ring-rose-400'
+                                : 'bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-900/60'
+                            }`}
                           >
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
-                              Clase
-                            </span>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                                Clase
+                              </span>
+                              {isBlockSelectionMode && (
+                                <span className="text-[9px] text-rose-600 font-bold bg-rose-100 dark:bg-rose-950 px-1 rounded">
+                                  + Bloquear
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[11px] font-semibold truncate leading-tight mt-1">
                               {slot.classInfo?.courseName || 'Clase Regular'}
                             </p>
@@ -475,7 +833,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                         return (
                           <div
                             key={day.date}
-                            onClick={() => setSelectedSlotDetails(slot)}
+                            onClick={() => handleCellClick(slot)}
                             className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-900 dark:text-rose-200 cursor-pointer hover:shadow-xs transition-all flex flex-col justify-between"
                           >
                             <div className="flex items-center justify-between">
@@ -495,9 +853,14 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                       return (
                         <div
                           key={day.date}
-                          onClick={() => setSelectedSlotDetails(slot)}
+                          onClick={() => handleCellClick(slot)}
                           className={`p-2 rounded-xl border cursor-pointer hover:shadow-xs transition-all flex flex-col justify-between ${
-                            hasBookings
+                            isBlockSelectionMode
+                              ? 'hover:ring-2 hover:ring-rose-400 hover:border-rose-400 ' +
+                                (hasBookings
+                                  ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200'
+                                  : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/70')
+                              : hasBookings
                               ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50 text-amber-900 dark:text-amber-200'
                               : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/70 dark:border-emerald-900/40 text-emerald-900 dark:text-emerald-200'
                           }`}
@@ -512,6 +875,11 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                             >
                               {slot.availableGroups} / {slot.maxGroups} libres
                             </span>
+                            {isBlockSelectionMode && (
+                              <span className="text-[9px] text-rose-600 font-bold bg-rose-50 dark:bg-rose-950 px-1 rounded border border-rose-200">
+                                + Bloquear
+                              </span>
+                            )}
                           </div>
 
                           <div className="mt-1 flex items-center gap-1">
@@ -555,13 +923,13 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
             <button
               type="button"
               onClick={() => setShowClassModal(true)}
-              className="text-xs text-amber-600 font-semibold hover:underline"
+              className="text-xs text-amber-600 font-semibold hover:underline cursor-pointer"
             >
               + Agregar
             </button>
           </div>
 
-          <div className="mt-3 space-y-2 max-h-60 overflow-y-auto pr-1">
+          <div className="mt-3 space-y-2 max-h-72 overflow-y-auto pr-1">
             {labClasses.length === 0 ? (
               <p className="text-xs text-slate-400 py-4 text-center">
                 No hay clases regulares registradas para este laboratorio.
@@ -585,7 +953,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                     <button
                       type="button"
                       onClick={() => handleDeleteClass(cls.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
                       title="Eliminar clase regular"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -597,51 +965,95 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
           </div>
         </div>
 
-        {/* Bloqueos por Fecha Activos */}
+        {/* Bloqueos por Fecha Activos (Agrupados por Fecha con opción de Desbloquear Día Completo) */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <Lock className="w-4 h-4 text-rose-500" />
               Bloqueos de Turno por Fecha ({labBlocks.length})
             </h4>
-            <button
-              type="button"
-              onClick={() => setShowBlockModal(true)}
-              className="text-xs text-amber-600 font-semibold hover:underline"
-            >
-              + Bloquear
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsBlockSelectionMode(true)}
+                className="text-xs text-rose-600 dark:text-rose-400 font-semibold hover:underline cursor-pointer"
+              >
+                Seleccionar en grilla
+              </button>
+              <span className="text-slate-300 dark:text-slate-700">•</span>
+              <button
+                type="button"
+                onClick={() => handleOpenBlockModal(undefined, true)}
+                className="text-xs text-amber-600 font-semibold hover:underline cursor-pointer"
+              >
+                + Bloquear
+              </button>
+            </div>
           </div>
 
-          <div className="mt-3 space-y-2 max-h-60 overflow-y-auto pr-1">
-            {labBlocks.length === 0 ? (
+          <div className="mt-3 space-y-3 max-h-72 overflow-y-auto pr-1">
+            {uniqueDatesWithBlocks.length === 0 ? (
               <p className="text-xs text-slate-400 py-4 text-center">
                 No hay bloqueos extraordinarios registrados para este laboratorio.
               </p>
             ) : (
-              labBlocks.map((blk) => (
-                <div
-                  key={blk.id}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-rose-50/50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-xs"
-                >
-                  <div>
-                    <p className="font-semibold text-rose-900 dark:text-rose-200">
-                      {blk.reason}
-                    </p>
-                    <p className="text-[11px] text-rose-700 dark:text-rose-400">
-                      Fecha: {blk.date} • Bloque {blk.blockId}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteBlock(blk.id)}
-                    className="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
-                    title="Eliminar bloqueo"
+              uniqueDatesWithBlocks.map((date) => {
+                const dateBlocks = blocksByDate[date];
+                const isFullDay = dateBlocks.length >= TIME_BLOCKS.length;
+                return (
+                  <div
+                    key={date}
+                    className="p-3 rounded-xl bg-rose-50/50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 space-y-2 text-xs"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))
+                    <div className="flex items-center justify-between border-b border-rose-200/60 dark:border-rose-900/40 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-rose-900 dark:text-rose-200">
+                          {date}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-200/80 dark:bg-rose-900 text-rose-800 dark:text-rose-200">
+                          {isFullDay ? 'Día Completo (9 turnos)' : `${dateBlocks.length} turno(s)`}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleUnlockWholeDay(date)}
+                        className="text-[11px] font-bold text-rose-700 dark:text-rose-300 hover:text-rose-900 hover:underline flex items-center gap-1 cursor-pointer"
+                        title={`Desbloquear todos los turnos del día ${date}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        Desbloquear día ({date})
+                      </button>
+                    </div>
+
+                    {/* Desglose de bloques individuales de esta fecha */}
+                    <div className="space-y-1.5">
+                      {dateBlocks.map((blk) => (
+                        <div
+                          key={blk.id}
+                          className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-rose-100 dark:border-rose-950 text-xs"
+                        >
+                          <div className="truncate pr-2">
+                            <span className="font-bold text-rose-800 dark:text-rose-300 mr-2">
+                              {blk.blockId}
+                            </span>
+                            <span className="text-slate-600 dark:text-slate-300 truncate">
+                              {blk.reason}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBlock(blk.id)}
+                            className="p-1 text-rose-400 hover:text-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/50 rounded transition-colors cursor-pointer shrink-0"
+                            title="Eliminar este bloqueo individual"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -659,7 +1071,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
               <button
                 type="button"
                 onClick={handleCloseClassModal}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -674,7 +1086,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                   <select
                     value={newClassDay}
                     onChange={(e) => setNewClassDay(Number(e.target.value) as DayOfWeek)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-amber-500"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-amber-500 cursor-pointer"
                   >
                     {DAYS_OF_WEEK.map((d) => (
                       <option key={d.id} value={d.id}>
@@ -691,7 +1103,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                   <select
                     value={newClassBlock}
                     onChange={(e) => setNewClassBlock(e.target.value as TimeBlockId)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-amber-500"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-amber-500 cursor-pointer"
                   >
                     {TIME_BLOCKS.map((tb) => (
                       <option key={tb.id} value={tb.id}>
@@ -752,7 +1164,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                     <button
                       type="button"
                       onClick={() => setIsCustomTeacher(false)}
-                      className="px-2.5 py-2 text-[11px] font-semibold bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-lg text-slate-700 dark:text-slate-200 transition-colors"
+                      className="px-2.5 py-2 text-[11px] font-semibold bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-lg text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
                     >
                       Lista
                     </button>
@@ -778,14 +1190,14 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                 <button
                   type="button"
                   onClick={handleCloseClassModal}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={savingClass}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50"
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 cursor-pointer"
                 >
                   {savingClass ? 'Guardando...' : 'Guardar Clase Regular'}
                 </button>
@@ -795,25 +1207,31 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
         </div>
       )}
 
-      {/* MODAL: BLOQUEAR TURNO */}
+      {/* MODAL MEJORADO: BLOQUEAR HORARIOS O DÍA COMPLETO */}
       {showBlockModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Lock className="w-5 h-5 text-rose-500" />
-                Bloquear Turno por Fecha ({selectedLab.shortName})
-              </h3>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-rose-500" />
+                  Bloquear Horarios o Día Completo ({selectedLab.shortName})
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Selecciona la fecha y marca los horarios que deseas bloquear para reservas.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowBlockModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateBlock} className="mt-4 space-y-4">
+              {/* Selector de Fecha con píldoras de acceso rápido */}
               <div>
                 <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                   Fecha del Bloqueo (YYYY-MM-DD)
@@ -823,27 +1241,119 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                   required
                   value={blockDate}
                   onChange={(e) => setBlockDate(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
                 />
+
+                {scheduleData?.days && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[10px] text-slate-400 font-medium mr-0.5">
+                      Semana visible:
+                    </span>
+                    {scheduleData.days.map((d) => (
+                      <button
+                        key={d.date}
+                        type="button"
+                        onClick={() => setBlockDate(d.date)}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                          blockDate === d.date
+                            ? 'bg-rose-600 text-white font-bold shadow-xs'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {d.dayName} {d.date.slice(5)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
-                  Bloque Horario
-                </label>
-                <select
-                  value={blockTimeBlock}
-                  onChange={(e) => setBlockTimeBlock(e.target.value as TimeBlockId)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-amber-500"
-                >
-                  {TIME_BLOCKS.map((tb) => (
-                    <option key={tb.id} value={tb.id}>
-                      {tb.id} ({tb.startTime} - {tb.endTime})
-                    </option>
-                  ))}
-                </select>
+              {/* Selector Multi-Bloque y Botones Rápidos */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold uppercase text-slate-500">
+                    Horarios a Bloquear ({selectedModalBlocks.length} de {TIME_BLOCKS.length})
+                  </label>
+                  {selectedModalBlocks.length === TIME_BLOCKS.length && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-950/80 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Día Completo Seleccionado
+                    </span>
+                  )}
+                </div>
+
+                {/* Acciones Rápidas */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModalBlocks(TIME_BLOCKS.map((t) => t.id))}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      selectedModalBlocks.length === TIME_BLOCKS.length
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    Día Completo (B1 - B9)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModalBlocks(['B1', 'B2', 'B3', 'B4'])}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                  >
+                    Mañana (B1 - B4)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModalBlocks(['B5', 'B6', 'B7', 'B8', 'B9'])}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                  >
+                    Tarde/Noche (B5 - B9)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModalBlocks([])}
+                    className="px-2 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer ml-auto"
+                  >
+                    Limpiar
+                  </button>
+                </div>
+
+                {/* Cuadrícula interactiva de 9 bloques en 3 columnas */}
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  {TIME_BLOCKS.map((tb) => {
+                    const isSelected = selectedModalBlocks.includes(tb.id);
+                    return (
+                      <button
+                        key={tb.id}
+                        type="button"
+                        onClick={() => toggleModalBlock(tb.id)}
+                        className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/50 text-rose-950 dark:text-rose-100 ring-2 ring-rose-500/30'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs">{tb.id}</span>
+                          <span
+                            className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold ${
+                              isSelected
+                                ? 'bg-rose-600 text-white'
+                                : 'border border-slate-300 dark:border-slate-600 text-transparent'
+                            }`}
+                          >
+                            ✓
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 font-mono leading-tight">
+                          {tb.startTime} - {tb.endTime}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
+              {/* Motivo del Bloqueo */}
               <div>
                 <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                   Motivo del Bloqueo
@@ -851,10 +1361,10 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                 <input
                   type="text"
                   required
-                  placeholder="ej. Mantenimiento preventivo Festo o Examen Parcial"
+                  placeholder="ej. Mantenimiento preventivo, Feriado o Examen Parcial"
                   value={blockReason}
                   onChange={(e) => setBlockReason(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
                 />
               </div>
 
@@ -862,16 +1372,20 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                 <button
                   type="button"
                   onClick={() => setShowBlockModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={savingBlock}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50"
+                  disabled={savingBlock || selectedModalBlocks.length === 0}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 cursor-pointer"
                 >
-                  {savingBlock ? 'Bloqueando...' : 'Confirmar Bloqueo'}
+                  {savingBlock
+                    ? 'Bloqueando...'
+                    : selectedModalBlocks.length === TIME_BLOCKS.length
+                    ? 'Confirmar Bloqueo (Día Completo)'
+                    : `Confirmar Bloqueo (${selectedModalBlocks.length} horarios)`}
                 </button>
               </div>
             </form>
@@ -896,7 +1410,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
               <button
                 type="button"
                 onClick={() => setSelectedSlotDetails(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -925,18 +1439,30 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                   <p className="text-rose-800 dark:text-rose-300 mt-1">
                     {selectedSlotDetails.blockReason}
                   </p>
-                  {selectedSlotDetails.blockRecordId && (
+                  <div className="flex flex-wrap items-center gap-3 mt-2 pt-2 border-t border-rose-200 dark:border-rose-900/60">
+                    {selectedSlotDetails.blockRecordId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleDeleteBlock(selectedSlotDetails.blockRecordId!);
+                          setSelectedSlotDetails(null);
+                        }}
+                        className="text-rose-600 underline font-semibold cursor-pointer text-xs"
+                      >
+                        Desbloquear este turno ahora
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
-                        handleDeleteBlock(selectedSlotDetails.blockRecordId!);
+                        handleUnlockWholeDay(selectedSlotDetails.date);
                         setSelectedSlotDetails(null);
                       }}
-                      className="mt-2 text-rose-600 underline font-semibold cursor-pointer"
+                      className="text-rose-700 dark:text-rose-300 hover:underline font-semibold text-xs cursor-pointer"
                     >
-                      Desbloquear este turno ahora
+                      Desbloquear todo el día ({selectedSlotDetails.date})
                     </button>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -977,7 +1503,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
                         <button
                           type="button"
                           onClick={() => handleCancelReservation(booking.id)}
-                          className="px-2.5 py-1 text-[11px] font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg hover:bg-rose-100 transition-colors"
+                          className="px-2.5 py-1 text-[11px] font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg hover:bg-rose-100 transition-colors cursor-pointer"
                         >
                           Cancelar Reserva
                         </button>
@@ -992,7 +1518,7 @@ export function AdminLabsConfigTab({ dashboard, onRefresh }: AdminLabsConfigTabP
               <button
                 type="button"
                 onClick={() => setSelectedSlotDetails(null)}
-                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold hover:bg-slate-200"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold hover:bg-slate-200 cursor-pointer"
               >
                 Cerrar
               </button>
