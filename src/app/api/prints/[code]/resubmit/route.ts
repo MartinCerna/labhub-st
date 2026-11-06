@@ -4,8 +4,10 @@ import { StlFileMetadata } from '@/types/labhub';
 import { dbRepository } from '@/lib/storage/db';
 import {
   exceedsMaxPrinterDimensions,
+  exceedsMaxPrintWeight,
   MAX_PRINTER_DIMENSION_MM,
   parseStlBuffer,
+  STL_WEIGHT_LIMIT_ERROR_MESSAGE,
   validateStlFileName,
 } from '@/lib/stl-parser';
 import { googleBridge } from '@/lib/google/bridge';
@@ -71,6 +73,14 @@ export async function POST(
     if (uploadedFiles.length === 0) {
       return NextResponse.json(
         { error: 'Debe adjuntar los nuevos archivos .stl corregidos.' },
+        { status: 400 }
+      );
+    }
+
+    const totalSizeBytes = uploadedFiles.reduce((acc, f) => acc + f.size, 0);
+    if (exceedsMaxPrintWeight(totalSizeBytes)) {
+      return NextResponse.json(
+        { error: STL_WEIGHT_LIMIT_ERROR_MESSAGE },
         { status: 400 }
       );
     }

@@ -9,8 +9,10 @@ import { OBSERVATION_WINDOW_HOURS, PRINT_3D_STATUSES } from '@/constants/schedul
 import { dbRepository } from '@/lib/storage/db';
 import {
   exceedsMaxPrinterDimensions,
+  exceedsMaxPrintWeight,
   MAX_PRINTER_DIMENSION_MM,
   parseStlBuffer,
+  STL_WEIGHT_LIMIT_ERROR_MESSAGE,
   validateStlFileName,
 } from '@/lib/stl-parser';
 import { getAdminSessionFromRequest, requireAdminSession } from '@/lib/auth';
@@ -73,6 +75,14 @@ export async function POST(request: NextRequest) {
     if (uploadedFiles.length === 0) {
       return NextResponse.json(
         { error: 'Debe adjuntar al menos un archivo con formato .stl.' },
+        { status: 400 }
+      );
+    }
+
+    const totalSizeBytes = uploadedFiles.reduce((acc, f) => acc + f.size, 0);
+    if (exceedsMaxPrintWeight(totalSizeBytes)) {
+      return NextResponse.json(
+        { error: STL_WEIGHT_LIMIT_ERROR_MESSAGE },
         { status: 400 }
       );
     }

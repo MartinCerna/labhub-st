@@ -29,6 +29,10 @@ import {
   ParsedStlGeometry,
   exceedsMaxPrinterDimensions,
   MAX_PRINTER_DIMENSION_MM,
+  exceedsMaxPrintWeight,
+  MAX_PRINT_WEIGHT_BYTES,
+  MAX_PRINT_WEIGHT_MB,
+  STL_WEIGHT_LIMIT_ERROR_MESSAGE,
 } from '@/lib/stl-parser';
 import {
   generateIcsCalendar,
@@ -312,6 +316,14 @@ endsolid test_cube`;
       const invalidAscii = Buffer.from('solid solo_nombre_sin_geometria\nendsolid', 'utf-8');
       const invalidAsciiArrayBuffer = toArrayBuffer(invalidAscii);
       expect(() => parseStlBuffer(invalidAsciiArrayBuffer)).toThrow('El contenido del archivo no corresponde a una malla .stl válida.');
+    });
+
+    it('debe validar límites de peso máximo de 500 MB para archivos STL', () => {
+      expect(MAX_PRINT_WEIGHT_MB).toBe(500);
+      expect(MAX_PRINT_WEIGHT_BYTES).toBe(500 * 1024 * 1024);
+      expect(exceedsMaxPrintWeight(500 * 1024 * 1024)).toBe(false);
+      expect(exceedsMaxPrintWeight(500 * 1024 * 1024 + 1)).toBe(true);
+      expect(STL_WEIGHT_LIMIT_ERROR_MESSAGE).toContain('500 MB');
     });
   });
 
@@ -910,6 +922,34 @@ endsolid test_cube`;
       expect(oversizedRes.status).toBe(400);
       const oversizedJson = await oversizedRes.json();
       expect(oversizedJson.error).toContain('supera las dimensiones máximas de la impresora');
+
+      // 2c. POST rechazo por superar límite total de peso (500 MB)
+      const overweightFile = new File(['dummy stl content'], 'modelo_pesado.stl', {
+        type: 'application/octet-stream',
+      });
+      Object.defineProperty(overweightFile, 'size', {
+        value: 501 * 1024 * 1024,
+        configurable: true,
+      });
+
+      const overweightFd = new FormData();
+      overweightFd.append('studentFullName', 'Estudiante 3D QA');
+      overweightFd.append('upnCode', 'N00334455');
+      overweightFd.append('teacherName', 'Fernando Aristides Saldaña Milla');
+      overweightFd.append('course', 'Robótica Industrial y Móvil');
+      overweightFd.append('nrc', '5840');
+      overweightFd.append('file', overweightFile);
+
+      const overweightReq = new NextRequest('http://localhost:3000/api/prints', {
+        method: 'POST',
+        body: overweightFd,
+      });
+      overweightReq.formData = async () => overweightFd;
+
+      const overweightRes = await postPrint(overweightReq);
+      expect(overweightRes.status).toBe(400);
+      const overweightJson = await overweightRes.json();
+      expect(overweightJson.error).toBe(STL_WEIGHT_LIMIT_ERROR_MESSAGE);
 
       // 3. POST exitoso con archivo STL binario
       const validStlBuf = createSampleBinaryStlBuffer(35, 35, 15);

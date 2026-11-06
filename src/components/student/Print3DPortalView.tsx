@@ -41,7 +41,15 @@ import {
   saveStudentProfile,
   lookupStudentByUpnCode,
 } from '@/lib/student-profile-storage';
-import { parseStlBuffer, ParsedStlGeometry, validateStlFileName } from '@/lib/stl-parser';
+import {
+  parseStlBuffer,
+  ParsedStlGeometry,
+  validateStlFileName,
+  MAX_PRINT_WEIGHT_BYTES,
+  MAX_PRINT_WEIGHT_MB,
+  exceedsMaxPrintWeight,
+  STL_WEIGHT_LIMIT_ERROR_MESSAGE,
+} from '@/lib/stl-parser';
 import { useToast } from '@/components/shared/ToastProvider';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 
@@ -128,6 +136,13 @@ export function Print3DPortalView({
   );
   const hasOversizedFiles = oversizedFiles.length > 0;
 
+  // Cálculo acumulado de peso de archivos STL y control del límite de 500 MB
+  const totalStlWeightBytes = useMemo(
+    () => stlLst.reduce((acc, item) => acc + (item.file?.size || 0), 0),
+    [stlLst]
+  );
+  const isOverweight = exceedsMaxPrintWeight(totalStlWeightBytes);
+
   // Modal Visor STL 3D
   const [viewerFile, setViewerFile] = useState<{
     file?: File;
@@ -179,6 +194,16 @@ export function Print3DPortalView({
   const processFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
     if (fileArray.length === 0) return;
+
+    // Validación preventiva de peso acumulado con los nuevos archivos
+    const currentTotalBytes = stlLst.reduce((acc, item) => acc + (item.file?.size || 0), 0);
+    const incomingBytes = fileArray.reduce((acc, f) => acc + (f.size || 0), 0);
+    if (exceedsMaxPrintWeight(currentTotalBytes + incomingBytes)) {
+      showToast(
+        'El peso de los archivos supera los 500 MB. Recuerda que las dimensiones máximas son 200 × 200 × 200 mm. Si cumplen con las dimensiones, procede a realizar dos envíos por separado.',
+        'warning'
+      );
+    }
 
     setParsingFiles(true);
     let addedValidCount = 0;
@@ -254,6 +279,15 @@ export function Print3DPortalView({
 
     if (stlLst.length === 0) {
       showToast('Debes cargar al menos un archivo .stl válido para imprimir.', 'warning');
+      return;
+    }
+
+    // Bloqueo estricto por peso > 500 MB
+    if (isOverweight) {
+      showToast(
+        'No se pueden enviar los archivos al servidor: el peso excede los 500 MB. Recuerda que las dimensiones máximas son 200 × 200 × 200 mm. Si tus archivos cumplen con ello, realiza dos envíos por separado.',
+        'error'
+      );
       return;
     }
 
@@ -356,6 +390,16 @@ export function Print3DPortalView({
   // --------------------------------------------------------------------------
   const processResubmitFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
+    // Validación preventiva de peso acumulado con los nuevos archivos
+    const currentResubmitBytes = resubmitFiles.reduce((acc, item) => acc + (item.file?.size || 0), 0);
+    const incomingBytes = fileArray.reduce((acc, f) => acc + (f.size || 0), 0);
+    if (exceedsMaxPrintWeight(currentResubmitBytes + incomingBytes)) {
+      showToast(
+        'El peso de los archivos supera los 500 MB. Recuerda que las dimensiones máximas son 200 × 200 × 200 mm. Si cumplen con las dimensiones, procede a realizar dos envíos por separado.',
+        'warning'
+      );
+    }
+
     for (const f of fileArray) {
       if (!validateStlFileName(f.name)) {
         showToast(`El archivo "${f.name}" no es .stl y fue omitido.`, 'error');
@@ -385,6 +429,16 @@ export function Print3DPortalView({
   const handleResubmit = async (reqCode: string) => {
     if (resubmitFiles.length === 0) {
       showToast('Carga al menos un archivo .stl corregido para subsanar.', 'warning');
+      return;
+    }
+
+    // Bloqueo preventivo en cliente: previene envíos con peso acumulado > 500 MB
+    const totalResubmitBytes = resubmitFiles.reduce((acc, item) => acc + (item.file?.size || 0), 0);
+    if (exceedsMaxPrintWeight(totalResubmitBytes)) {
+      showToast(
+        'No se pueden enviar los archivos al servidor: el peso excede los 500 MB. Recuerda que las dimensiones máximas son 200 × 200 × 200 mm. Si tus archivos cumplen con ello, realiza dos envíos por separado.',
+        'error'
+      );
       return;
     }
 
@@ -578,10 +632,10 @@ export function Print3DPortalView({
                 </span>
                 <div>
                   <strong className="text-slate-900 font-bold block text-xs">
-                    Dimensiones máximas permitidas:
+                    Límite de peso y dimensiones máximas (Máx. 500 MB y 200 × 200 × 200 mm):
                   </strong>
                   <span className="text-slate-600 text-[11px] leading-relaxed">
-                    Las dimensiones máximas de impresión por modelo son de <strong className="text-indigo-900 font-mono font-bold">200 × 200 × 200 mm (20 × 20 × 20 cm)</strong>. Si alguna pieza supera las dimensiones de la impresora, el sistema bloqueará preventivamente el envío de los archivos al servidor hasta que sean corregidos.
+                    El peso total de los archivos .stl no debe superar los 500 MB por solicitud y las dimensiones máximas por pieza son de <strong className="text-indigo-900 font-mono font-bold">200 × 200 × 200 mm (20 × 20 × 20 cm)</strong>. Si el peso de los archivos supera los 500 MB, el sistema no enviará los archivos; recuerda verificar que tus piezas cumplan las dimensiones máximas y, en caso afirmativo, procede a realizar dos envíos por separado de tus archivos.
                   </span>
                 </div>
               </div>
@@ -725,16 +779,28 @@ export function Print3DPortalView({
 
             {/* ZONA DRAG & DROP PARA ARCHIVOS STL */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <Box className="w-4 h-4 text-indigo-600" />
                     <span>Archivos .STL para Prototipado ({stlLst.length})</span>
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Solo se admiten archivos .stl válidos (mallas binarias o ASCII). Se analizarán dimensiones y volumen.
+                    Solo se admiten archivos .stl válidos. Límite de 500 MB en total y 200 × 200 × 200 mm por pieza.
                   </p>
                 </div>
+                {stlLst.length > 0 && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-[11px] font-mono font-bold px-3 py-1 rounded-xl border ${
+                      isOverweight
+                        ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span>Peso total:</span>
+                    <span>{(totalStlWeightBytes / (1024 * 1024)).toFixed(1)} MB / {MAX_PRINT_WEIGHT_MB} MB</span>
+                  </span>
+                )}
               </div>
 
               {/* Contenedor Dropzone */}
@@ -924,6 +990,80 @@ export function Print3DPortalView({
                     })}
                   </div>
 
+                  {/* BLOQUE DE ALERTA: EXCESO DE PESO ACUMULADO (> 500 MB) */}
+                  {isOverweight && (
+                    <div className="bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5 animate-in fade-in duration-200">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+                          <AlertTriangle className="w-6 h-6 text-amber-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-extrabold text-amber-950 tracking-tight">
+                            Envío bloqueado: El peso acumulado de los archivos supera los 500 MB
+                          </h4>
+                          <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+                            El peso actual de tus archivos es de <strong className="font-bold font-mono">{(totalStlWeightBytes / (1024 * 1024)).toFixed(1)} MB</strong>, superando el límite máximo de <strong className="font-bold">500 MB</strong> por solicitud.
+                          </p>
+                          <div className="mt-2.5 p-3 bg-white/90 rounded-xl border border-amber-300 text-xs space-y-1.5 text-slate-800">
+                            <span className="font-bold text-amber-950 block text-[11px] uppercase tracking-wider">
+                              Recordatorio de requisitos técnicos:
+                            </span>
+                            <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-700">
+                              <li>
+                                <strong>Dimensiones máximas por pieza:</strong> 200 × 200 × 200 mm (20 × 20 × 20 cm).
+                              </li>
+                              <li>
+                                <strong>Límite de peso por solicitud:</strong> 500 MB.
+                              </li>
+                              <li className="text-amber-950 font-medium">
+                                <strong>Indicación:</strong> En caso sus archivos sí cumplan con las dimensiones de 200 × 200 × 200 mm, procedan a realizar dos envíos por separado de sus archivos en dos envíos, ya que exceden el límite de peso.
+                              </li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Botones de acción rápida: remover archivo más pesado o limpiar */}
+                      <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-1 border-t border-amber-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (stlLst.length > 0) {
+                              let maxIdx = 0;
+                              let maxSize = -1;
+                              stlLst.forEach((item, idx) => {
+                                if (item.file.size > maxSize) {
+                                  maxSize = item.file.size;
+                                  maxIdx = idx;
+                                }
+                              });
+                              const removedItem = stlLst[maxIdx];
+                              setStlLst((prev) => prev.filter((_, idx) => idx !== maxIdx));
+                              showToast(
+                                `Se retiró "${removedItem.file.name}" (${(removedItem.file.size / (1024 * 1024)).toFixed(1)} MB) para reducir el peso.`,
+                                'info'
+                              );
+                            }
+                          }}
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Retirar archivo más pesado</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStlLst([]);
+                            showToast('Se limpiaron todos los archivos.', 'info');
+                          }}
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs shadow-2xs transition-colors cursor-pointer"
+                        >
+                          <span>Limpiar todos los archivos</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* BLOQUE DE ALERTA ROJA PREVENTIVA: ENVÍO BLOQUEADO POR EXCESO DIMENSIONAL */}
                   {hasOversizedFiles && (
                     <div className="bg-rose-50 border-2 border-rose-400 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5 animate-in fade-in duration-200">
@@ -992,7 +1132,7 @@ export function Print3DPortalView({
                   required
                 />
                 <span className="text-xs text-slate-700 leading-relaxed font-medium">
-                  Declaro haber leído y acepto las <strong className="text-slate-900 font-bold">Condiciones Obligatorias para Impresión 3D del HUB Tecnológico</strong>. Asumo la <strong className="text-rose-700 font-bold">exclusiva responsabilidad por fallas estructurales o defectos mecánicos derivados de mi diseño CAD</strong> y ratifico que mis modelos cumplen con el límite máximo de <strong className="text-slate-900 font-mono font-bold">20 × 20 × 20 cm (200 × 200 × 200 mm)</strong> en formato <strong className="font-mono text-slate-900 font-bold">.stl</strong>.
+                  Declaro haber leído y acepto las <strong className="text-slate-900 font-bold">Condiciones Obligatorias para Impresión 3D del HUB Tecnológico</strong>. Asumo la <strong className="text-rose-700 font-bold">exclusiva responsabilidad por fallas estructurales o defectos mecánicos derivados de mi diseño CAD</strong> y ratifico que mis modelos cumplen con el límite de peso de <strong className="text-slate-900 font-mono font-bold">500 MB</strong> por solicitud y las dimensiones máximas de <strong className="text-slate-900 font-mono font-bold">200 × 200 × 200 mm (20 × 20 × 20 cm)</strong> en formato <strong className="font-mono text-slate-900 font-bold">.stl</strong>.
                 </span>
               </label>
               {!acceptedConditions && (
@@ -1015,13 +1155,18 @@ export function Print3DPortalView({
 
               <button
                 type="submit"
-                disabled={submitting || stlLst.length === 0 || !acceptedConditions || hasOversizedFiles}
+                disabled={submitting || stlLst.length === 0 || !acceptedConditions || hasOversizedFiles || isOverweight}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
                     <span>Subiendo archivos y registrando...</span>
+                  </>
+                ) : isOverweight ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4 text-amber-300" />
+                    <span>Archivos superan 500 MB: realiza dos envíos por separado</span>
                   </>
                 ) : hasOversizedFiles ? (
                   <>
@@ -1448,6 +1593,7 @@ function ObservationPanel({
   resubmitting,
   onViewStl,
 }: ObservationPanelProps) {
+  const { showToast } = useToast();
   const [timeLeft, setTimeLeft] = useState<{
     hours: number;
     minutes: number;
@@ -1461,6 +1607,13 @@ function ObservationPanel({
     [resubmitFiles]
   );
   const hasOversizedResubmitFiles = oversizedResubmitFiles.length > 0;
+
+  // Detección preventiva de peso acumulado en subsanación (> 500 MB)
+  const totalResubmitWeightBytes = useMemo(
+    () => resubmitFiles.reduce((acc, item) => acc + (item.file?.size || 0), 0),
+    [resubmitFiles]
+  );
+  const isResubmitOverweight = exceedsMaxPrintWeight(totalResubmitWeightBytes);
 
   useEffect(() => {
     // Si no tiene observationExpiresAt pero está observado, calcular 48 horas desde createdAt
@@ -1539,10 +1692,22 @@ function ObservationPanel({
       {/* FORMULARIO DIRECTO PARA SUBIR ARCHIVOS STL CORREGIDOS */}
       {!timeLeft.expired ? (
         <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Subsanar: Carga tus Nuevos Archivos .STL Corregidos
+              Subsanar: Carga tus Nuevos Archivos .STL Corregidos ({resubmitFiles.length})
             </h4>
+            {resubmitFiles.length > 0 && (
+              <span
+                className={`inline-flex items-center gap-1.5 text-[11px] font-mono font-bold px-2.5 py-1 rounded-xl border ${
+                  isResubmitOverweight
+                    ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                    : 'bg-white text-slate-700 border-slate-200'
+                }`}
+              >
+                <span>Peso:</span>
+                <span>{(totalResubmitWeightBytes / (1024 * 1024)).toFixed(1)} MB / {MAX_PRINT_WEIGHT_MB} MB</span>
+              </span>
+            )}
           </div>
 
           <div className="p-4 bg-white border border-dashed border-rose-300 rounded-2xl text-center">
@@ -1668,6 +1833,56 @@ function ObservationPanel({
                 })}
               </div>
 
+              {/* Banner de bloqueo en subsanación si hay exceso de peso (> 500 MB) */}
+              {isResubmitOverweight && (
+                <div className="p-3.5 rounded-xl bg-amber-100/90 border border-amber-300 text-xs text-amber-950 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="leading-snug">
+                      <strong className="block font-bold">Subsanación bloqueada por peso (&gt; 500 MB):</strong>
+                      El peso de los archivos subsanados ({(totalResubmitWeightBytes / (1024 * 1024)).toFixed(1)} MB) supera los 500 MB permitidos. Recuerda que las dimensiones máximas son 200 × 200 × 200 mm. En caso tus archivos sí cumplan con las dimensiones de 200 × 200 × 200 mm, procedan a realizar dos envíos por separado de sus archivos en dos envíos, ya que exceden el límite de peso.
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (resubmitFiles.length > 0) {
+                          let maxIdx = 0;
+                          let maxSize = -1;
+                          resubmitFiles.forEach((item, idx) => {
+                            if (item.file.size > maxSize) {
+                              maxSize = item.file.size;
+                              maxIdx = idx;
+                            }
+                          });
+                          const removedItem = resubmitFiles[maxIdx];
+                          setResubmitFiles((prev) => prev.filter((_, idx) => idx !== maxIdx));
+                          showToast(
+                            `Se retiró "${removedItem.file.name}" (${(removedItem.file.size / (1024 * 1024)).toFixed(1)} MB).`,
+                            'info'
+                          );
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Retirar archivo más pesado</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResubmitFiles([]);
+                        showToast('Se limpiaron los archivos de subsanación.', 'info');
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-amber-400 bg-white hover:bg-amber-50 text-amber-900 font-bold text-[11px] transition-colors cursor-pointer"
+                    >
+                      <span>Limpiar archivos</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Banner de bloqueo en subsanación si hay archivos con exceso */}
               {hasOversizedResubmitFiles && (
                 <div className="p-3.5 rounded-xl bg-rose-100/90 border border-rose-300 text-xs text-rose-950 space-y-2">
@@ -1696,19 +1911,23 @@ function ObservationPanel({
               <div className="pt-2 flex justify-end">
                 <button
                   type="button"
-                  disabled={resubmitting || hasOversizedResubmitFiles}
+                  disabled={resubmitting || hasOversizedResubmitFiles || isResubmitOverweight}
                   onClick={onResubmit}
                   className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-2"
                 >
                   {resubmitting ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : isResubmitOverweight ? (
+                    <AlertTriangle className="w-4 h-4 text-amber-200" />
                   ) : hasOversizedResubmitFiles ? (
                     <AlertTriangle className="w-4 h-4 text-amber-200" />
                   ) : (
                     <CheckCircle2 className="w-4 h-4" />
                   )}
                   <span>
-                    {hasOversizedResubmitFiles
+                    {isResubmitOverweight
+                      ? 'Archivos superan 500 MB: realiza dos envíos por separado'
+                      : hasOversizedResubmitFiles
                       ? 'Corrige las piezas que superan 200×200×200 mm para subsanar'
                       : 'Enviar Correcciones para Aprobación'}
                   </span>

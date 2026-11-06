@@ -4,6 +4,14 @@
 // ============================================================================
 
 export const MAX_PRINTER_DIMENSION_MM = 200;
+export const MAX_PRINT_WEIGHT_MB = 500;
+export const MAX_PRINT_WEIGHT_BYTES = MAX_PRINT_WEIGHT_MB * 1024 * 1024; // 524,288,000 bytes
+export const STL_WEIGHT_LIMIT_ERROR_MESSAGE =
+  'El peso de los archivos excede el límite de 500 MB. Recuerda que las dimensiones máximas son 200 × 200 × 200 mm. En caso tus archivos sí cumplan con ello, procede a realizar dos envíos por separado de tus archivos, ya que exceden el límite de peso por solicitud.';
+
+export function exceedsMaxPrintWeight(totalBytes: number): boolean {
+  return totalBytes > MAX_PRINT_WEIGHT_BYTES;
+}
 
 export function exceedsMaxPrinterDimensions(
   dimensionsMm: { x: number; y: number; z: number },
