@@ -21,6 +21,7 @@ import {
   DEFAULT_TEACHERS_CATALOG,
   getWeekDaysForOffset,
 } from '@/constants/schedule';
+import { buildAdvisoryCalendarDetails, buildGoogleCalendarUrl } from '@/lib/calendar/ics';
 
 export interface StoredAdminUser extends AdminSessionUser {
   passwordHash: string; // SHA-256
@@ -638,12 +639,14 @@ function buildInitialDatabase(): LabHubDatabase {
     linkedReservationId: advisoryReservationId,
     linkedReservationCode: 'RES-2026-0003',
     status: 'PROGRAMADA',
-    calendarEventUrl:
-      'https://calendar.google.com/calendar/render?action=TEMPLATE&text=Asesoria+LabHub+UPN+-+ASE-2026-0001',
+    calendarEventUrl: '',
     icsDownloadUrl: `/api/advisories/${sampleAdvisoryId}/ics`,
     calendarNotified: false,
     createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
   };
+  sampleAdvisory.calendarEventUrl = buildGoogleCalendarUrl(
+    buildAdvisoryCalendarDetails(sampleAdvisory)
+  );
 
   const sampleSignaturePng =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAAA8CAYAAACF0L/3AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAH1SURBVHhe7dsxattAFIXh/c89Z20JdpmN4AowKewZ...firma_simulada';
@@ -901,6 +904,16 @@ export function normalizeDatabase(db: LabHubDatabase): LabHubDatabase {
     });
   }
 
+  if (Array.isArray(db.advisories)) {
+    for (const adv of db.advisories) {
+      if (adv.blockIds && adv.blockIds.length > 0 && adv.date) {
+        try {
+          adv.calendarEventUrl = buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(adv));
+        } catch {}
+      }
+    }
+  }
+
   return db;
 }
 
@@ -1047,7 +1060,17 @@ export const dbRepository = {
   getDatabase: async (): Promise<LabHubDatabase> => {
     await tryColdStartCloudHydration();
     return withDbLock(async () => {
-      return readDatabaseRaw();
+      const db = await readDatabaseRaw();
+      if (Array.isArray(db.advisories)) {
+        for (const adv of db.advisories) {
+          if (adv.blockIds && adv.blockIds.length > 0 && adv.date) {
+            try {
+              adv.calendarEventUrl = buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(adv));
+            } catch {}
+          }
+        }
+      }
+      return db;
     });
   },
 

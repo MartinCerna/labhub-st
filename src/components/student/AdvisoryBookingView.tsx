@@ -51,6 +51,7 @@ import {
   lookupStudentByUpnCode,
   clearSavedStudentProfile,
 } from '@/lib/student-profile-storage';
+import { buildAdvisoryCalendarDetails, buildGoogleCalendarUrl } from '@/lib/calendar/ics';
 import { useToast } from '@/components/shared/ToastProvider';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 
@@ -941,18 +942,16 @@ export function AdvisoryBookingView() {
                               <span>Descargar .ics</span>
                             </a>
 
-                            {adv.calendarEventUrl && (
-                              <a
-                                href={adv.calendarEventUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-semibold transition-colors"
-                                title="Abrir en Google Calendar"
-                              >
-                                <CalendarPlus className="w-3.5 h-3.5 text-sky-600" />
-                                <ExternalLink className="w-3 h-3 text-sky-500" />
-                              </a>
-                            )}
+                            <a
+                              href={buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(adv))}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-semibold transition-colors"
+                              title="Abrir en Google Calendar"
+                            >
+                              <CalendarPlus className="w-3.5 h-3.5 text-sky-600" />
+                              <ExternalLink className="w-3 h-3 text-sky-500" />
+                            </a>
                           </div>
 
                           {/* Botón Cancelar Asesoría si está PROGRAMADA */}

@@ -7,6 +7,8 @@ import {
 } from '@/types/labhub';
 import { dbRepository } from '@/lib/storage/db';
 import { oneDriveClient } from '@/lib/cloud/onedrive-client';
+import { TIME_BLOCK_MAP } from '@/constants/schedule';
+import { buildAdvisoryCalendarDetails, buildGoogleCalendarUrl } from '@/lib/calendar/ics';
 import {
   extractSignaturePngBuffer,
   generateLoanActaHtml,
@@ -274,9 +276,29 @@ export const googleBridge = {
     const config = db.googleConfig;
     const provider = resolveActiveProvider(config);
 
+    // Regenerar y asegurar enlaces exactos de Google Calendar en todas las asesorías
+    if (Array.isArray(db.advisories)) {
+      for (const adv of db.advisories) {
+        if (adv.blockIds && adv.blockIds.length > 0 && adv.date) {
+          try {
+            adv.calendarEventUrl = buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(adv));
+          } catch {}
+        }
+      }
+    }
+
     if (provider === 'ONEDRIVE') {
       if (!config.onedrive?.refreshToken) {
         throw new Error('No hay sesión activa de Microsoft OneDrive.');
+      }
+
+      // 0. Sincronizar/actualizar calendario de asesorías programadas en Microsoft Graph
+      if (config.syncCalendarAndEmail !== false && Array.isArray(db.advisories)) {
+        for (const adv of db.advisories) {
+          if (adv.status === 'PROGRAMADA') {
+            await oneDriveClient.createCalendarEventForAdvisory(config.onedrive, adv);
+          }
+        }
       }
 
       // 1. Snapshot de la base de datos
@@ -535,17 +557,36 @@ export const googleBridge = {
     const db = await dbRepository.getDatabase();
     if (!db.googleConfig.enabled) return;
 
+    const sortedBlocks = [...(advisory.blockIds || [])].sort(
+      (a, b) => (TIME_BLOCK_MAP[a]?.order ?? 0) - (TIME_BLOCK_MAP[b]?.order ?? 0)
+    );
+    const firstBlock = sortedBlocks[0] ? TIME_BLOCK_MAP[sortedBlocks[0]] : undefined;
+    const lastBlock = sortedBlocks[sortedBlocks.length - 1]
+      ? TIME_BLOCK_MAP[sortedBlocks[sortedBlocks.length - 1]]
+      : undefined;
+
+    const startTime = firstBlock?.startTime || '09:10';
+    const endTime = lastBlock?.endTime || '10:40';
+    const blocksLabel = sortedBlocks
+      .map((b) => TIME_BLOCK_MAP[b]?.label || b)
+      .join(', ');
+
     const provider = resolveActiveProvider(db.googleConfig);
 
     if (provider === 'ONEDRIVE' && db.googleConfig.onedrive?.refreshToken) {
-      // Intentar crear evento en calendario de Microsoft Graph
+      // Intentar crear o actualizar evento en calendario de Microsoft Graph
       if (db.googleConfig.syncCalendarAndEmail !== false) {
         await oneDriveClient.createCalendarEventForAdvisory(db.googleConfig.onedrive, advisory);
       }
       await dbRepository.updateDatabase(
         (database) => {
           const item = database.advisories.find((a) => a.id === advisory.id);
-          if (item) item.calendarNotified = true;
+          if (item) {
+            item.calendarNotified = true;
+            try {
+              item.calendarEventUrl = buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(item));
+            } catch {}
+          }
         },
         { skipCloudStatePush: true }
       );
@@ -556,6 +597,9 @@ export const googleBridge = {
     if (db.googleConfig.appsScriptWebhookUrl) {
       sendGoogleWebhookRequest('SYNC_ADVISORY', {
         advisory,
+        startTime,
+        endTime,
+        blocksLabel,
         syncCalendar: db.googleConfig.syncCalendarAndEmail,
         syncSheets: db.googleConfig.syncRecordsToSheets,
       }).then(async (res) => {
@@ -563,7 +607,12 @@ export const googleBridge = {
           await dbRepository.updateDatabase(
             (database) => {
               const item = database.advisories.find((a) => a.id === advisory.id);
-              if (item) item.calendarNotified = true;
+              if (item) {
+                item.calendarNotified = true;
+                try {
+                  item.calendarEventUrl = buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(item));
+                } catch {}
+              }
             },
             { skipCloudStatePush: true }
           );

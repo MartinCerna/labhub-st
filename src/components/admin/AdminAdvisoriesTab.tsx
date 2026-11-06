@@ -10,6 +10,7 @@ import { TIME_BLOCK_MAP, LAB_MAP } from '@/constants/schedule';
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/shared/ToastProvider';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { buildAdvisoryCalendarDetails, buildGoogleCalendarUrl } from '@/lib/calendar/ics';
 import {
   Calendar,
   Clock,
@@ -27,6 +28,7 @@ import {
   Wrench,
   Printer,
   FolderKanban,
+  RefreshCw,
 } from 'lucide-react';
 
 interface AdminAdvisoriesTabProps {
@@ -41,6 +43,7 @@ export function AdminAdvisoriesTab({ dashboard, onRefresh, initialSearchQuery }:
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   // A5: Filtro contextual instantáneo desde el Buscador Global
   useEffect(() => {
@@ -94,6 +97,23 @@ export function AdminAdvisoriesTab({ dashboard, onRefresh, initialSearchQuery }:
       showToast(msg, 'error');
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const handleSyncCalendar = async (adv: AdvisoryRequest, blocksText: string) => {
+    try {
+      setSyncingId(adv.id);
+      await apiClient.updateAdvisoryStatus(adv.id, adv.status);
+      showToast(
+        `Horario de asesoría sincronizado con el calendario (${blocksText}).`,
+        'success'
+      );
+      await onRefresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al sincronizar el calendario.';
+      showToast(msg, 'error');
+    } finally {
+      setSyncingId(null);
     }
   };
 
@@ -289,6 +309,7 @@ export function AdminAdvisoriesTab({ dashboard, onRefresh, initialSearchQuery }:
                 .map((b) => TIME_BLOCK_MAP[b]?.label || b)
                 .join(', ');
               const isLoading = actionLoadingId === adv.id;
+              const calendarUrl = buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(adv));
 
               return (
                 <div
@@ -420,28 +441,36 @@ export function AdminAdvisoriesTab({ dashboard, onRefresh, initialSearchQuery }:
                       </div>
 
                       {/* Enlaces Google Calendar e ICS */}
-                      <div className="pt-2 flex items-center gap-2 flex-wrap">
-                        {adv.calendarEventUrl && (
-                          <a
-                            href={adv.calendarEventUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            Ver en Google Calendar
-                          </a>
-                        )}
+                      <div className="pt-2 flex items-center gap-2.5 flex-wrap">
+                        <a
+                          href={calendarUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline cursor-pointer"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Ver en Google Calendar
+                        </a>
                         {adv.icsDownloadUrl && (
                           <a
                             href={adv.icsDownloadUrl}
                             download={`asesoria-${adv.code}.ics`}
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 hover:underline"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 hover:underline cursor-pointer"
                           >
                             <Download className="w-3 h-3" />
                             Descargar .ics
                           </a>
                         )}
+                        <button
+                          type="button"
+                          disabled={syncingId === adv.id}
+                          onClick={() => handleSyncCalendar(adv, blocksText)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:underline disabled:opacity-50 cursor-pointer"
+                          title="Sincronizar horario exacto con el calendario externo"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${syncingId === adv.id ? 'animate-spin' : ''}`} />
+                          Sincronizar Calendario
+                        </button>
                       </div>
                     </div>
                   </div>

@@ -1,4 +1,5 @@
 import { AdvisoryRequest, OneDriveConfig } from '@/types/labhub';
+import { LAB_MAP, TIME_BLOCK_MAP } from '@/constants/schedule';
 
 interface TokenCacheEntry {
   accessToken: string;
@@ -633,6 +634,7 @@ export const oneDriveClient = {
   /**
    * Intenta crear el evento en el calendario de Microsoft Outlook / Graph (/me/events)
    * invitando al asesor académico. Maneja fallos silenciosamente si la cuenta no cuenta con scope Calendars.
+   * Si ya existe un evento para el código de asesoría, lo actualiza (PATCH) para corregir el horario.
    */
   async createCalendarEventForAdvisory(
     config: OneDriveConfig,
@@ -641,15 +643,43 @@ export const oneDriveClient = {
     try {
       const token = await this.getAccessToken(config);
 
+      const sortedBlocks = [...(advisory.blockIds || [])].sort(
+        (a, b) => (TIME_BLOCK_MAP[a]?.order ?? 0) - (TIME_BLOCK_MAP[b]?.order ?? 0)
+      );
+      const firstBlock = sortedBlocks[0] ? TIME_BLOCK_MAP[sortedBlocks[0]] : undefined;
+      const lastBlock = sortedBlocks[sortedBlocks.length - 1]
+        ? TIME_BLOCK_MAP[sortedBlocks[sortedBlocks.length - 1]]
+        : undefined;
+
+      const startTimeStr = firstBlock?.startTime || '09:10';
+      const endTimeStr = lastBlock?.endTime || '10:40';
+      const blocksLabel = sortedBlocks
+        .map((b) => TIME_BLOCK_MAP[b]?.label || b)
+        .join(', ');
+
       const dateStr = advisory.date; // YYYY-MM-DD
-      const startDateTime = `${dateStr}T08:00:00`;
-      const endDateTime = `${dateStr}T10:00:00`;
+      const startDateTime = `${dateStr}T${startTimeStr}:00`;
+      const endDateTime = `${dateStr}T${endTimeStr}:00`;
+
+      const labDisplayName = LAB_MAP[advisory.labId]?.name || advisory.labId;
+
+      const content = [
+        `Asesoría en Laboratorio UPN: ${advisory.projectName}`,
+        `Código: ${advisory.code}`,
+        `Horario reservado: ${blocksLabel} (${startTimeStr} - ${endTimeStr})`,
+        `Curso: ${advisory.course} (NRC: ${advisory.nrc})`,
+        `Laboratorio: ${labDisplayName}`,
+        `Estudiantes:\n${advisory.students.map((s) => `- ${s.fullName} (${s.upnCode})`).join('\n')}`,
+        advisory.topicNotes ? `\nConsulta:\n${advisory.topicNotes}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
 
       const body = {
         subject: `[LabHub UPN] Asesoría: ${advisory.projectName} (${advisory.code})`,
         body: {
           contentType: 'Text',
-          content: `Asesoría en Laboratorio UPN: ${advisory.projectName}\nCódigo: ${advisory.code}\nCurso: ${advisory.course} (NRC: ${advisory.nrc})\nLaboratorio: ${advisory.labId}\nEstudiantes:\n${advisory.students.map((s) => `- ${s.fullName} (${s.upnCode})`).join('\n')}\n\nConsulta:\n${advisory.topicNotes || 'Sin notas adicionales.'}`,
+          content,
         },
         start: {
           dateTime: startDateTime,
@@ -660,7 +690,7 @@ export const oneDriveClient = {
           timeZone: 'America/Lima',
         },
         location: {
-          displayName: `Laboratorio ${advisory.labId.toUpperCase()} — UPN`,
+          displayName: `${labDisplayName} — UPN`,
         },
         attendees: [
           {
@@ -673,6 +703,53 @@ export const oneDriveClient = {
         ],
       };
 
+      // 1. Verificar si ya existe un evento para advisory.code en el calendario
+      try {
+        const checkRes = await fetch(
+          'https://graph.microsoft.com/v1.0/me/events?$select=id,subject,webLink&$top=50',
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        if (checkRes.ok) {
+          const listData = (await checkRes.json()) as {
+            value?: Array<{ id: string; subject?: string; webLink?: string }>;
+          };
+          const existingEvent = (listData.value || []).find(
+            (ev) => ev.subject && ev.subject.includes(advisory.code)
+          );
+
+          if (existingEvent) {
+            const patchRes = await fetch(
+              `https://graph.microsoft.com/v1.0/me/events/${existingEvent.id}`,
+              {
+                method: 'PATCH',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+              }
+            );
+
+            if (patchRes.ok) {
+              const patchedData = (await patchRes.json().catch(() => ({}))) as {
+                webLink?: string;
+              };
+              return {
+                id: existingEvent.id,
+                webLink: patchedData.webLink || existingEvent.webLink,
+              };
+            }
+          }
+        }
+      } catch (searchErr) {
+        console.warn('[OneDrive/Graph] Error al buscar eventos existentes:', searchErr);
+      }
+
+      // 2. Si no existe o no se pudo hacer PATCH, crear evento con POST
       const res = await fetch('https://graph.microsoft.com/v1.0/me/events', {
         method: 'POST',
         headers: {

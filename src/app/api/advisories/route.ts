@@ -374,12 +374,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const body = (await request.json()) as { id: string; status: AdvisoryRequest['status'] };
-    const { id, status } = body;
+    const body = (await request.json()) as {
+      id: string;
+      status?: AdvisoryRequest['status'];
+      resyncCalendar?: boolean;
+    };
+    const { id, status, resyncCalendar } = body;
 
-    if (!id || !status) {
+    if (!id || (!status && !resyncCalendar)) {
       return NextResponse.json(
-        { error: 'Los campos "id" y "status" son obligatorios.' },
+        { error: 'Debe especificar el id y al menos el nuevo estado o resyncCalendar.' },
         { status: 400 }
       );
     }
@@ -390,10 +394,12 @@ export async function PATCH(request: NextRequest) {
         throw new Error('Asesoría no encontrada.');
       }
 
-      advisory.status = status;
+      if (status) {
+        advisory.status = status;
+      }
 
       // Si se cancela la asesoría, cancelar también la reserva vinculada
-      if (status === 'CANCELADA' && advisory.linkedReservationId) {
+      if (advisory.status === 'CANCELADA' && advisory.linkedReservationId) {
         const linkedRes = db.reservations.find(
           (r) => r.id === advisory.linkedReservationId
         );
@@ -402,8 +408,20 @@ export async function PATCH(request: NextRequest) {
         }
       }
 
+      if (advisory.status === 'PROGRAMADA' || resyncCalendar) {
+        try {
+          advisory.calendarEventUrl = buildGoogleCalendarUrl(
+            buildAdvisoryCalendarDetails(advisory)
+          );
+        } catch {}
+      }
+
       return advisory;
     });
+
+    if (updatedAdvisory.status === 'PROGRAMADA' || resyncCalendar) {
+      await googleBridge.syncAdvisory(updatedAdvisory);
+    }
 
     return NextResponse.json({ advisory: updatedAdvisory });
   } catch (error: unknown) {
