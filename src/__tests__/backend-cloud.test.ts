@@ -12,6 +12,7 @@ import { googleBridge } from '@/lib/google/bridge';
 import { buildAdvisoryCalendarDetails, buildGoogleCalendarUrl } from '@/lib/calendar/ics';
 import { EquipmentLoan, AdvisoryRequest } from '@/types/labhub';
 import { GET as getGoogleAdminRoute } from '@/app/api/admin/google/route';
+import { POST as postAuthRoute } from '@/app/api/admin/auth/route';
 import { createSessionToken, AUTH_COOKIE_NAME } from '@/lib/auth';
 
 describe('Suite de Pruebas Backend — Documentos, OneDrive y Almacenamiento en la Nube', () => {
@@ -417,6 +418,50 @@ describe('Suite de Pruebas Backend — Documentos, OneDrive y Almacenamiento en 
       expect(content).toContain('existingEvent.getStartTime().getTime() !== startTime.getTime() ||');
       expect(content).toContain('existingEvent.deleteEvent()');
       expect(content).toContain('defaultCal.createEvent(eventTitle, startTime, endTime, eventOptions)');
+    });
+
+    it('debe permitir autenticación de coordinador tanto con martin.cernaa@gmail.com como con martin.leon@upn.edu.pe', async () => {
+      // 1. Con martin.cernaa@gmail.com
+      const req1 = new NextRequest('http://localhost:3000/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'martin.cernaa@gmail.com',
+          password: 'StitchUPN',
+        }),
+      });
+      const res1 = await postAuthRoute(req1);
+      expect(res1.status).toBe(200);
+      const json1 = await res1.json();
+      expect(json1.user.role).toBe('COORDINADOR');
+      expect(json1.user.advisorId).toBe('adv-1');
+
+      // 2. Con martin.leon@upn.edu.pe
+      const req2 = new NextRequest('http://localhost:3000/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'martin.leon@upn.edu.pe',
+          password: 'StitchUPN',
+        }),
+      });
+      const res2 = await postAuthRoute(req2);
+      expect(res2.status).toBe(200);
+      const json2 = await res2.json();
+      expect(json2.user.role).toBe('COORDINADOR');
+      expect(json2.user.advisorId).toBe('adv-1');
+
+      // 3. Contraseña incorrecta
+      const reqBad = new NextRequest('http://localhost:3000/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'martin.leon@upn.edu.pe',
+          password: 'ClaveIncorrecta',
+        }),
+      });
+      const resBad = await postAuthRoute(reqBad);
+      expect(resBad.status).toBe(401);
     });
   });
 });

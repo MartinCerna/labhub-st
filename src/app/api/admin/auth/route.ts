@@ -26,7 +26,28 @@ export async function POST(request: NextRequest) {
     const passwordHash = hashPassword(String(password));
 
     const db = await dbRepository.getDatabase();
-    const storedUser = db.adminUsers.find((u) => {
+
+    const isMartinCoordinator =
+      cleanIdentifier === 'martin.cernaa@gmail.com' ||
+      cleanIdentifier === 'martin.cernaa' ||
+      cleanIdentifier === 'martin.leon@upn.edu.pe' ||
+      cleanIdentifier === 'martin.leon';
+
+    let storedUser = db.adminUsers.find((u) => {
+      // Si el identificador ingresado corresponde al coordinador Martín León Cerna,
+      // verificar contra el usuario coordinador admin-martin
+      if (
+        isMartinCoordinator &&
+        (u.id === 'admin-martin' ||
+          u.id === 'admin-martin-upn' ||
+          u.email?.toLowerCase() === 'martin.cernaa@gmail.com' ||
+          u.email?.toLowerCase() === 'martin.leon@upn.edu.pe' ||
+          u.username?.toLowerCase() === 'martin.cernaa@gmail.com' ||
+          u.username?.toLowerCase() === 'martin.leon@upn.edu.pe')
+      ) {
+        return u.passwordHash === passwordHash;
+      }
+
       if (u.passwordHash !== passwordHash) return false;
       const userUsername = (u.username || '').toLowerCase();
       const userEmail = (u.email || '').toLowerCase();
@@ -41,6 +62,20 @@ export async function POST(request: NextRequest) {
       );
     });
 
+    // Respaldo explícito para Martín León Cerna: si no se encontró en la búsqueda anterior
+    // verificar la contraseña directamente contra el usuario coordinador admin-martin
+    if (!storedUser && isMartinCoordinator) {
+      const coordinator = db.adminUsers.find(
+        (u) =>
+          u.id === 'admin-martin' ||
+          u.email?.toLowerCase() === 'martin.cernaa@gmail.com' ||
+          u.role === 'COORDINADOR'
+      );
+      if (coordinator && coordinator.passwordHash === passwordHash) {
+        storedUser = coordinator;
+      }
+    }
+
     if (!storedUser) {
       return NextResponse.json(
         { error: 'Usuario o contraseña incorrectos.' },
@@ -50,9 +85,9 @@ export async function POST(request: NextRequest) {
 
     const sessionUser: AdminSessionUser = {
       id: storedUser.id,
-      username: storedUser.username,
+      username: cleanIdentifier.includes('@') ? cleanIdentifier : storedUser.username,
       fullName: storedUser.fullName,
-      email: storedUser.email,
+      email: cleanIdentifier.includes('@') ? cleanIdentifier : storedUser.email,
       role: storedUser.role,
       advisorId: storedUser.advisorId,
     };

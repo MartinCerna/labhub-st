@@ -203,6 +203,15 @@ function buildInitialDatabase(): LabHubDatabase {
       passwordHash: hashPassword('StitchUPN'),
     },
     {
+      id: 'admin-martin-upn',
+      username: 'martin.leon@upn.edu.pe',
+      fullName: 'Martín Aarón León Cerna',
+      email: 'martin.leon@upn.edu.pe',
+      role: 'COORDINADOR',
+      advisorId: 'adv-1',
+      passwordHash: hashPassword('StitchUPN'),
+    },
+    {
       id: 'admin-juan',
       username: 'juan.gomez@upn.edu.pe',
       fullName: 'Juan Daniel Gomez Montes',
@@ -914,6 +923,26 @@ export function normalizeDatabase(db: LabHubDatabase): LabHubDatabase {
     }
   }
 
+  if (Array.isArray(db.adminUsers)) {
+    const hasMartinUpn = db.adminUsers.some(
+      (u) => (u.email || '').toLowerCase() === 'martin.leon@upn.edu.pe' || (u.username || '').toLowerCase() === 'martin.leon@upn.edu.pe'
+    );
+    const martinUser = db.adminUsers.find(
+      (u) => u.id === 'admin-martin' || (u.email || '').toLowerCase() === 'martin.cernaa@gmail.com'
+    );
+    if (!hasMartinUpn && martinUser) {
+      db.adminUsers.push({
+        id: 'admin-martin-upn',
+        username: 'martin.leon@upn.edu.pe',
+        fullName: martinUser.fullName || 'Martín Aarón León Cerna',
+        email: 'martin.leon@upn.edu.pe',
+        role: 'COORDINADOR',
+        advisorId: martinUser.advisorId || 'adv-1',
+        passwordHash: martinUser.passwordHash,
+      });
+    }
+  }
+
   return db;
 }
 
@@ -1024,6 +1053,8 @@ async function writeDatabaseRaw(db: LabHubDatabase): Promise<void> {
 let coldStartHydrationPromise: Promise<void> | null = null;
 let coldStartHydrationFailed = false;
 let cloudPushTimer: ReturnType<typeof setTimeout> | null = null;
+let isPullingStateFromCloud = false;
+let cloudPullPromise: Promise<boolean> | null = null;
 
 function scheduleBackgroundCloudSnapshotPush(db: LabHubDatabase): void {
   if (process.env.VITEST) return;
@@ -1086,7 +1117,7 @@ function tryColdStartCloudHydration(): Promise<void> {
       const webhookUrl = localDb.googleConfig?.appsScriptWebhookUrl || DEFAULT_GOOGLE_WEBHOOK_URL;
       if (webhookUrl) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout para Apps Script cold start
         try {
           const res = await fetch(webhookUrl, {
             method: 'POST',
@@ -1104,8 +1135,8 @@ function tryColdStartCloudHydration(): Promise<void> {
           if (res.ok) {
             const json = (await res.json()) as { ok?: boolean; state?: any; error?: string };
             if (json && json.ok && json.state) {
-              await dbRepository.replaceDatabaseState(json.state);
               coldStartHydrationFailed = false;
+              await dbRepository.replaceDatabaseState(json.state);
             } else if (json && json.ok === false) {
               coldStartHydrationFailed = true;
               console.warn('[ColdStart] Google Apps Script reportó error en GET_STATE:', json.error);
@@ -1137,10 +1168,10 @@ function tryColdStartCloudHydration(): Promise<void> {
 export const dbRepository = {
   getDatabase: async (): Promise<LabHubDatabase> => {
     await tryColdStartCloudHydration();
-    return withDbLock(async () => {
-      const db = await readDatabaseRaw();
-      if (Array.isArray(db.advisories)) {
-        for (const adv of db.advisories) {
+    let db = await withDbLock(async () => {
+      const current = await readDatabaseRaw();
+      if (Array.isArray(current.advisories)) {
+        for (const adv of current.advisories) {
           if (adv.blockIds && adv.blockIds.length > 0 && adv.date) {
             try {
               adv.calendarEventUrl = buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(adv));
@@ -1148,8 +1179,58 @@ export const dbRepository = {
           }
         }
       }
-      return db;
+      return current;
     });
+
+    if (isPullingStateFromCloud) {
+      return db;
+    }
+
+    // Comprobar si la base de datos leída está vacía de actividad en producción
+    const isActivityEmpty =
+      !process.env.VITEST &&
+      (!db.advisories || db.advisories.length === 0) &&
+      (!db.reservations || db.reservations.length === 0) &&
+      (!db.slotBlocks || db.slotBlocks.length === 0);
+
+    if (isActivityEmpty) {
+      if (!cloudPullPromise) {
+        cloudPullPromise = (async () => {
+          isPullingStateFromCloud = true;
+          try {
+            const { googleBridge } = await import('@/lib/google/bridge');
+            const pullRes = await googleBridge.pullStateFromCloud();
+            return Boolean(pullRes && pullRes.ok && pullRes.restored);
+          } catch (err) {
+            console.warn('[ColdStart] Error al intentar recuperación directa de estado desde la nube:', err);
+            return false;
+          } finally {
+            isPullingStateFromCloud = false;
+          }
+        })();
+      }
+
+      const restored = await cloudPullPromise;
+      cloudPullPromise = null;
+
+      if (restored) {
+        db = await withDbLock(async () => {
+          const refreshed = await readDatabaseRaw();
+          if (Array.isArray(refreshed.advisories)) {
+            for (const adv of refreshed.advisories) {
+              if (adv.blockIds && adv.blockIds.length > 0 && adv.date) {
+                try {
+                  adv.calendarEventUrl = buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(adv));
+                } catch {}
+              }
+            }
+          }
+          return refreshed;
+        });
+      }
+    }
+
+    return db;
   },
 
   updateDatabase: async <T>(
@@ -1221,7 +1302,27 @@ export const dbRepository = {
           return remoteDb.teachersCatalog;
         })(),
         googleConfig: remoteDb.googleConfig ? { ...current.googleConfig, ...remoteDb.googleConfig } : current.googleConfig,
-        adminUsers: Array.isArray(remoteDb.adminUsers) && remoteDb.adminUsers.length > 0 ? remoteDb.adminUsers : current.adminUsers,
+        adminUsers: (() => {
+          const list = Array.isArray(remoteDb.adminUsers) && remoteDb.adminUsers.length > 0 ? [...remoteDb.adminUsers] : [...current.adminUsers];
+          const hasMartinUpn = list.some(
+            (u) => (u.email || '').toLowerCase() === 'martin.leon@upn.edu.pe' || (u.username || '').toLowerCase() === 'martin.leon@upn.edu.pe'
+          );
+          const martinUser = list.find(
+            (u) => u.id === 'admin-martin' || (u.email || '').toLowerCase() === 'martin.cernaa@gmail.com'
+          );
+          if (!hasMartinUpn && martinUser) {
+            list.push({
+              id: 'admin-martin-upn',
+              username: 'martin.leon@upn.edu.pe',
+              fullName: martinUser.fullName || 'Martín Aarón León Cerna',
+              email: 'martin.leon@upn.edu.pe',
+              role: 'COORDINADOR',
+              advisorId: martinUser.advisorId || 'adv-1',
+              passwordHash: martinUser.passwordHash,
+            });
+          }
+          return list;
+        })(),
         sequences: remoteDb.sequences || current.sequences,
       };
 
@@ -1318,6 +1419,8 @@ export const _storageTesting = {
   resetColdStartHydrationForTest: () => {
     coldStartHydrationPromise = null;
     coldStartHydrationFailed = false;
+    cloudPullPromise = null;
+    isPullingStateFromCloud = false;
   },
   setColdStartHydrationFailed: (val: boolean) => {
     coldStartHydrationFailed = val;
