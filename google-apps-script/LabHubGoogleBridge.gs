@@ -386,16 +386,25 @@ function handleSyncAdvisory(spreadsheet, payload) {
     sheet.appendRow(rowValues);
   }
 
-  // Creación de evento en Google Calendar si está autorizado
+  // Creación o actualización de evento en Google Calendar si está autorizado
+  var calResult = syncAdvisoriesCalendar_(adv, payload, studentsText);
+
+  return {
+    ok: true,
+    code: adv.code,
+    calendarCreated: calResult.calendarCreated,
+    eventUrl: calResult.eventUrl,
+  };
+}
+
+/**
+ * Sincroniza el evento en Google Calendar con el asesor y horario exacto (UTC-5 Perú).
+ */
+function syncAdvisoriesCalendar_(adv, payload, studentsText) {
   var calendarCreated = false;
   var eventUrl = "";
   try {
     if (payload.syncCalendar !== false && adv.date && adv.advisorEmail) {
-      var dateParts = adv.date.split("-");
-      var year = parseInt(dateParts[0], 10);
-      var month = parseInt(dateParts[1], 10) - 1;
-      var day = parseInt(dateParts[2], 10);
-
       var TIME_BLOCK_MAP = {
         'B1': { startTime: '07:30', endTime: '09:00', order: 1 },
         'B2': { startTime: '09:10', endTime: '10:40', order: 2 },
@@ -436,23 +445,33 @@ function handleSyncAdvisory(spreadsheet, payload) {
         }
       }
 
-      var startTime = new Date(year, month, day, startHour, startMin, 0);
-      var endTime = new Date(year, month, day, endHour, endMin, 0);
+      var pad2 = function(n) { return n < 10 ? "0" + n : String(n); };
+      var startIso = adv.date + "T" + pad2(startHour) + ":" + pad2(startMin) + ":00-05:00";
+      var endIso = adv.date + "T" + pad2(endHour) + ":" + pad2(endMin) + ":00-05:00";
+      var startTime = new Date(startIso);
+      var endTime = new Date(endIso);
 
       var eventTitle = "[LabHub UPN] Asesoría: " + adv.projectName + " (" + adv.code + ")";
       var blocksStr = payload.blocksLabel || (adv.blockIds ? adv.blockIds.join(', ') : '');
+      var startDisplay = payload.startTime || (pad2(startHour) + ":" + pad2(startMin));
+      var endDisplay = payload.endTime || (pad2(endHour) + ":" + pad2(endMin));
+
       var description =
         "Asesoría Académica en Laboratorio UPN\n" +
         "Código: " + adv.code + "\n" +
-        "Horario reservado: " + blocksStr + " (" + (payload.startTime || (startHour + ":" + (startMin < 10 ? "0" + startMin : startMin))) + " - " + (payload.endTime || (endHour + ":" + (endMin < 10 ? "0" + endMin : endMin))) + ")\n" +
+        "Horario reservado: " + blocksStr + " (" + startDisplay + " - " + endDisplay + ")\n" +
         "Asesor: " + adv.advisorName + "\n" +
         "Proyecto: " + adv.projectName + "\n" +
         "Curso: " + adv.course + " (NRC: " + adv.nrc + ")\n" +
         "Estudiantes:\n" + studentsText + "\n" +
         (adv.topicNotes ? "\nConsulta:\n" + adv.topicNotes : "");
 
+      var eventLocation = "Laboratorio " + (adv.labId ? String(adv.labId).toUpperCase() : "") + " - UPN";
+
       var defaultCal = CalendarApp.getDefaultCalendar();
-      var dayEvents = defaultCal.getEventsForDay(new Date(year, month, day));
+      var dayStart = new Date(adv.date + "T00:00:00-05:00");
+      var dayEnd = new Date(adv.date + "T23:59:59-05:00");
+      var dayEvents = defaultCal.getEvents(dayStart, dayEnd);
       var existingEvent = null;
 
       for (var i = 0; i < dayEvents.length; i++) {
@@ -463,26 +482,34 @@ function handleSyncAdvisory(spreadsheet, payload) {
         }
       }
 
+      var eventOptions = {
+        description: description,
+        location: eventLocation,
+        guests: adv.advisorEmail,
+        sendInvites: true,
+      };
+
       var event = null;
       if (existingEvent) {
-        existingEvent.setTime(startTime, endTime);
-        existingEvent.setDescription(description);
-        existingEvent.setTitle(eventTitle);
-        existingEvent.setLocation("Laboratorio " + adv.labId.toUpperCase() + " - UPN");
-        event = existingEvent;
-        calendarCreated = true;
-      } else {
-        event = defaultCal.createEvent(
-          eventTitle,
-          startTime,
-          endTime,
-          {
-            description: description,
-            location: "Laboratorio " + adv.labId.toUpperCase() + " - UPN",
-            guests: adv.advisorEmail,
-            sendInvites: true,
+        var timeChanged =
+          existingEvent.getStartTime().getTime() !== startTime.getTime() ||
+          existingEvent.getEndTime().getTime() !== endTime.getTime();
+
+        if (timeChanged) {
+          existingEvent.deleteEvent();
+          event = defaultCal.createEvent(eventTitle, startTime, endTime, eventOptions);
+          if (event) {
+            calendarCreated = true;
           }
-        );
+        } else {
+          existingEvent.setTitle(eventTitle);
+          existingEvent.setDescription(description);
+          existingEvent.setLocation(eventLocation);
+          event = existingEvent;
+          calendarCreated = true;
+        }
+      } else {
+        event = defaultCal.createEvent(eventTitle, startTime, endTime, eventOptions);
         if (event) {
           calendarCreated = true;
         }
@@ -496,7 +523,7 @@ function handleSyncAdvisory(spreadsheet, payload) {
     Logger.log("Error creando o actualizando evento de Calendar: " + calError.toString());
   }
 
-  return { ok: true, code: adv.code, calendarCreated: calendarCreated, eventUrl: eventUrl };
+  return { calendarCreated: calendarCreated, eventUrl: eventUrl };
 }
 
 function handleSyncLoan(rootFolder, spreadsheet, payload) {

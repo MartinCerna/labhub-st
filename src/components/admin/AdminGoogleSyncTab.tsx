@@ -120,6 +120,8 @@ export function AdminGoogleSyncTab({ dashboard, onRefresh }: AdminGoogleSyncTabP
   const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   const [showOneDriveSecret, setShowOneDriveSecret] = useState(false);
   const [copiedScriptPath, setCopiedScriptPath] = useState(false);
+  const [copyingScriptCode, setCopyingScriptCode] = useState(false);
+  const [copiedScriptCode, setCopiedScriptCode] = useState(false);
   const [copiedRedirectUri, setCopiedRedirectUri] = useState(false);
 
   // Origen para la URL de Callback de OneDrive
@@ -222,6 +224,35 @@ export function AdminGoogleSyncTab({ dashboard, onRefresh }: AdminGoogleSyncTabP
     setCopiedScriptPath(true);
     setTimeout(() => setCopiedScriptPath(false), 2000);
     showToast('Ruta copiada: google-apps-script/LabHubGoogleBridge.gs', 'info');
+  };
+
+  const copyFullScriptCode = async () => {
+    try {
+      setCopyingScriptCode(true);
+      const res = await fetch('/api/admin/google', {
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Error al obtener el código (${res.status})`);
+      }
+      const data = await res.json();
+      if (!data.scriptContent) {
+        throw new Error('No se recibió el código del script desde el servidor.');
+      }
+      await navigator.clipboard.writeText(data.scriptContent);
+      setCopiedScriptCode(true);
+      setTimeout(() => setCopiedScriptCode(false), 2500);
+      showToast(
+        'Código completo de LabHubGoogleBridge.gs copiado al portapapeles. Pégalo en script.google.com y publica una Nueva Versión.',
+        'success'
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al copiar el código del script.';
+      showToast(msg, 'error');
+    } finally {
+      setCopyingScriptCode(false);
+    }
   };
 
   const copyRedirectUri = () => {
@@ -696,22 +727,50 @@ export function AdminGoogleSyncTab({ dashboard, onRefresh }: AdminGoogleSyncTabP
                   <p className="text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                     Copia el contenido íntegro del archivo listo para producción ubicado en:
                   </p>
-                  <div className="mt-2 flex items-center justify-between p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                    <code className="font-mono text-[10px] text-amber-700 dark:text-amber-400 truncate">
-                      google-apps-script/LabHubGoogleBridge.gs
-                    </code>
+
+                  <div className="mt-3 space-y-2">
                     <button
                       type="button"
-                      onClick={copyScriptPath}
-                      className="p-1 text-slate-400 hover:text-amber-600 cursor-pointer"
-                      title="Copiar ruta"
+                      onClick={copyFullScriptCode}
+                      disabled={copyingScriptCode}
+                      className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+                      title="Copiar código fuente completo para pegar en Google Apps Script"
                     >
-                      {copiedScriptPath ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      {copyingScriptCode ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Obteniendo código...</span>
+                        </>
+                      ) : copiedScriptCode ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-white" />
+                          <span>¡Código .gs Copiado!</span>
+                        </>
                       ) : (
-                        <Copy className="w-3.5 h-3.5" />
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copiar Código Completo (.gs)</span>
+                        </>
                       )}
                     </button>
+
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                      <code className="font-mono text-[10px] text-amber-700 dark:text-amber-400 truncate">
+                        google-apps-script/LabHubGoogleBridge.gs
+                      </code>
+                      <button
+                        type="button"
+                        onClick={copyScriptPath}
+                        className="p-1 text-slate-400 hover:text-amber-600 cursor-pointer"
+                        title="Copiar ruta"
+                      >
+                        {copiedScriptPath ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -730,6 +789,23 @@ export function AdminGoogleSyncTab({ dashboard, onRefresh }: AdminGoogleSyncTabP
                     <em>"Quién tiene acceso"</em> selecciona <strong>"Cualquier usuario"</strong> y pega la URL en el formulario.
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Nota clara para actualización / re-despliegue del código */}
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                <p className="font-bold text-amber-900 dark:text-amber-100">
+                  Nota obligatoria al actualizar el código en script.google.com:
+                </p>
+                <p className="leading-relaxed text-amber-800 dark:text-amber-300">
+                  En <strong className="font-semibold text-amber-950 dark:text-amber-100">script.google.com</strong>, tras pegar el código actualizado, es obligatorio ir a{' '}
+                  <span className="font-bold text-amber-950 dark:text-amber-100 bg-amber-100/80 dark:bg-amber-900/40 px-1 py-0.5 rounded">
+                    Implementar &gt; Administrar implementaciones &gt; Editar (ícono de lápiz) &gt; Versión: &quot;Nueva versión&quot; &gt; Implementar
+                  </span>{' '}
+                  para que Google Apps Script ejecute el nuevo código en lugar de la versión antigua en caché.
+                </p>
               </div>
             </div>
           </div>

@@ -1,8 +1,23 @@
+import fs from 'fs';
+import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleWorkspaceConfig } from '@/types/labhub';
 import { dbRepository } from '@/lib/storage/db';
 import { requireAdminSession } from '@/lib/auth';
 import { googleBridge } from '@/lib/google/bridge';
+
+export async function GET(request: NextRequest) {
+  try {
+    requireAdminSession(request);
+    const filePath = path.join(process.cwd(), 'google-apps-script', 'LabHubGoogleBridge.gs');
+    const scriptContent = fs.readFileSync(filePath, 'utf-8');
+    return NextResponse.json({ scriptContent });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error al obtener código de Google Apps Script';
+    const status = (error as any)?.status || 400;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
 
 export async function PUT(request: NextRequest) {
   try {

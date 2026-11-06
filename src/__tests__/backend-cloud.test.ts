@@ -1,4 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 import {
   generateLoanActaHtml,
   extractSignaturePngBuffer,
@@ -7,7 +10,9 @@ import { oneDriveClient } from '@/lib/cloud/onedrive-client';
 import { dbRepository, LabHubDatabase } from '@/lib/storage/db';
 import { googleBridge } from '@/lib/google/bridge';
 import { buildAdvisoryCalendarDetails, buildGoogleCalendarUrl } from '@/lib/calendar/ics';
-import { EquipmentLoan } from '@/types/labhub';
+import { EquipmentLoan, AdvisoryRequest } from '@/types/labhub';
+import { GET as getGoogleAdminRoute } from '@/app/api/admin/google/route';
+import { createSessionToken, AUTH_COOKIE_NAME } from '@/lib/auth';
 
 describe('Suite de Pruebas Backend — Documentos, OneDrive y Almacenamiento en la Nube', () => {
   const sampleLoan: EquipmentLoan = {
@@ -173,7 +178,7 @@ describe('Suite de Pruebas Backend — Documentos, OneDrive y Almacenamiento en 
 
   describe('5. Corrección de Horarios de Asesorías en Calendario (OneDrive & Google Calendar)', () => {
     it('debe calcular correctamente el horario de inicio y fin para bloques combinados B5 y B6 (14:30 a 17:40)', () => {
-      const advisoryB5B6 = {
+      const advisoryB5B6: any = {
         id: 'adv-test-ase-002',
         code: 'ASE-2026-0002',
         advisorId: 'adv-1',
@@ -263,8 +268,9 @@ describe('Suite de Pruebas Backend — Documentos, OneDrive y Almacenamiento en 
           clientId: 'cid',
           clientSecret: 'secret',
           refreshToken: 'rtoken',
+          rootFolderPath: 'LabHub_ST_UPN',
         },
-        advisory
+        advisory as any
       );
 
       expect(result).toBeDefined();
@@ -275,6 +281,64 @@ describe('Suite de Pruebas Backend — Documentos, OneDrive y Almacenamiento en 
       expect(patchBodyCaptured.body.content).toContain('14:30 - 16:00, 16:10 - 17:40');
 
       fetchSpy.mockRestore();
+    });
+  });
+
+  describe('6. Endpoint GET /api/admin/google y Sincronización Google Apps Script', () => {
+    it('debe rechazar solicitudes no autorizadas (401) en GET /api/admin/google', async () => {
+      const req = new NextRequest('http://localhost:3000/api/admin/google', {
+        method: 'GET',
+      });
+      const response = await getGoogleAdminRoute(req);
+      expect(response.status).toBe(401);
+      const data = await response.json();
+      expect(data.error).toBeDefined();
+    });
+
+    it('debe retornar el script completo de Google Apps Script con sesión válida de admin', async () => {
+      const token = createSessionToken({
+        id: 'admin-1',
+        username: 'admin',
+        role: 'COORDINADOR',
+        fullName: 'Administrador LabHub',
+        email: 'admin@upn.pe',
+      });
+
+      const req = new NextRequest('http://localhost:3000/api/admin/google', {
+        method: 'GET',
+        headers: {
+          cookie: `${AUTH_COOKIE_NAME}=${token}`,
+        },
+      });
+
+      const response = await getGoogleAdminRoute(req);
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.scriptContent).toBeDefined();
+      expect(data.scriptContent).toContain('syncAdvisoriesCalendar_');
+      expect(data.scriptContent).toContain('00-05:00');
+      expect(data.scriptContent).toContain('deleteEvent');
+      expect(data.scriptContent).toContain('sendInvites: true');
+    });
+
+    it('el archivo LabHubGoogleBridge.gs debe contener la lógica de timezone de Perú (-05:00) y reemplazo de eventos', () => {
+      const scriptPath = path.join(process.cwd(), 'google-apps-script', 'LabHubGoogleBridge.gs');
+      const content = fs.readFileSync(scriptPath, 'utf-8');
+
+      // 1. Verificación del cálculo con offset ISO-8601 de Perú
+      expect(content).toContain('var pad2 = function(n) { return n < 10 ? "0" + n : String(n); };');
+      expect(content).toContain('var startIso = adv.date + "T" + pad2(startHour) + ":" + pad2(startMin) + ":00-05:00";');
+      expect(content).toContain('var endIso = adv.date + "T" + pad2(endHour) + ":" + pad2(endMin) + ":00-05:00";');
+
+      // 2. Rango explícito en hora de Perú para getEvents
+      expect(content).toContain('var dayStart = new Date(adv.date + "T00:00:00-05:00");');
+      expect(content).toContain('var dayEnd = new Date(adv.date + "T23:59:59-05:00");');
+      expect(content).toContain('var dayEvents = defaultCal.getEvents(dayStart, dayEnd);');
+
+      // 3. Verificación de cambio de hora y recreación de evento con sendInvites
+      expect(content).toContain('existingEvent.getStartTime().getTime() !== startTime.getTime() ||');
+      expect(content).toContain('existingEvent.deleteEvent()');
+      expect(content).toContain('defaultCal.createEvent(eventTitle, startTime, endTime, eventOptions)');
     });
   });
 });
