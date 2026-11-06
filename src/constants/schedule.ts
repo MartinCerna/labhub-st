@@ -94,6 +94,7 @@ export const PRINT_3D_STATUSES: Print3DStatus[] = [
   'ENVIADO',
   'EN REVISION',
   'OBSERVADO',
+  'RECHAZADA',
   'EN COLA',
   'IMPRIMIENDO',
   'LISTA',

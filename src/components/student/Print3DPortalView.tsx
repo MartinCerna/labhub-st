@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Timer,
   Check,
+  XCircle,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import {
@@ -576,10 +577,10 @@ export function Print3DPortalView({
                 </span>
                 <div>
                   <strong className="text-slate-900 font-bold block text-xs">
-                    Evaluación técnica y plazo de subsanación de 48 h:
+                    Evaluación técnica, observaciones y criterios de rechazo (48 h):
                   </strong>
                   <span className="text-slate-600 text-[11px] leading-relaxed">
-                    La impresión de los modelos está sujeta a evaluación por parte del HUB Tecnológico; en caso de presentarse alguna observación, se notificará y el estudiante tendrá un plazo máximo de <strong className="text-amber-950 font-bold">48 horas</strong> para subsanarla, caso contrario su Ticket será eliminado.
+                    De acuerdo al criterio técnico del equipo de laboratorio, las solicitudes pueden ser rechazadas o recibir observaciones técnicas. En caso de observación, el estudiante dispondrá de <strong className="text-amber-950 font-bold">48 horas</strong> para subsanarla; en caso de rechazo definitivo o no subsanar a tiempo, el ticket será eliminado automáticamente tras <strong className="text-rose-700 font-bold">48 horas</strong>.
                   </span>
                 </div>
               </div>
@@ -1132,7 +1133,7 @@ export function Print3DPortalView({
                   required
                 />
                 <span className="text-xs text-slate-700 leading-relaxed font-medium">
-                  Declaro haber leído y acepto las <strong className="text-slate-900 font-bold">Condiciones Obligatorias para Impresión 3D del HUB Tecnológico</strong>. Asumo la <strong className="text-rose-700 font-bold">exclusiva responsabilidad por fallas estructurales o defectos mecánicos derivados de mi diseño CAD</strong> y ratifico que mis modelos cumplen con el límite de peso de <strong className="text-slate-900 font-mono font-bold">500 MB</strong> por solicitud y las dimensiones máximas de <strong className="text-slate-900 font-mono font-bold">200 × 200 × 200 mm (20 × 20 × 20 cm)</strong> en formato <strong className="font-mono text-slate-900 font-bold">.stl</strong>.
+                  Declaro haber leído y acepto las <strong className="text-slate-900 font-bold">Condiciones Obligatorias para Impresión 3D del HUB Tecnológico</strong>. Reconozco que mi solicitud puede ser rechazada o recibir observaciones según el criterio técnico del equipo de laboratorio, y que en ambos casos los tickets son eliminados automáticamente tras 48 horas si no se subsanan o si son rechazados. Asimismo, asumo la <strong className="text-rose-700 font-bold">exclusiva responsabilidad por fallas estructurales o defectos mecánicos derivados de mi diseño CAD</strong> y ratifico que mis modelos cumplen con el límite de peso de <strong className="text-slate-900 font-mono font-bold">500 MB</strong> por solicitud y las dimensiones máximas de <strong className="text-slate-900 font-mono font-bold">200 × 200 × 200 mm (20 × 20 × 20 cm)</strong> en formato <strong className="font-mono text-slate-900 font-bold">.stl</strong>.
                 </span>
               </label>
               {!acceptedConditions && (
@@ -1374,6 +1375,11 @@ export function Print3DPortalView({
                 />
               )}
 
+              {/* CASO ESPECIAL RECHAZADA: PANEL DESTACADO CON CUENTA REGRESIVA 48H */}
+              {selectedRequest.status === 'RECHAZADA' && (
+                <RejectionPanel request={selectedRequest} />
+              )}
+
               {/* ARCHIVOS STL DE LA SOLICITUD */}
               <div className="space-y-3">
                 <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
@@ -1470,7 +1476,7 @@ export function Print3DPortalView({
 }
 
 // ----------------------------------------------------------------------------
-// COMPONENTE: LÍNEA DE TIEMPO VISUAL HORIZONTAL (STEPPER 6 PASOS + OBSERVADO)
+// COMPONENTE: LÍNEA DE TIEMPO VISUAL HORIZONTAL (STEPPER 6 PASOS + OBSERVADO + RECHAZADA)
 // ----------------------------------------------------------------------------
 function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
   // M17: Pasos oficiales del flujo de prototipado 3D
@@ -1485,7 +1491,7 @@ function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
 
   // Calcular índice del paso actual
   let activeIndex = 0;
-  if (currentStatus === 'EN REVISION' || currentStatus === 'OBSERVADO') {
+  if (currentStatus === 'EN REVISION' || currentStatus === 'OBSERVADO' || currentStatus === 'RECHAZADA') {
     activeIndex = 1;
   } else if (currentStatus === 'EN COLA') {
     activeIndex = 2;
@@ -1498,6 +1504,7 @@ function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
   }
 
   const isObserved = currentStatus === 'OBSERVADO';
+  const isRejected = currentStatus === 'RECHAZADA';
 
   return (
     <div className="space-y-4">
@@ -1518,6 +1525,23 @@ function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
         </div>
       )}
 
+      {/* Alerta si está rechazada por criterio técnico */}
+      {isRejected && (
+        <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 flex items-center gap-3 text-rose-900 shadow-2xs animate-in fade-in">
+          <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+            <XCircle className="w-5 h-5 text-rose-600" />
+          </div>
+          <div>
+            <span className="text-xs font-extrabold uppercase tracking-wider block">
+              Solicitud Rechazada por Criterio Técnico
+            </span>
+            <span className="text-[11px] text-rose-700">
+              La solicitud no cumple con los criterios de fabricación aditiva o seguridad del HUB Tecnológico. El ticket será eliminado automáticamente tras 48 horas.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Stepper Horizontal */}
       <div className="overflow-x-auto py-3">
         <div className="flex items-center min-w-[720px] justify-between relative px-2">
@@ -1532,7 +1556,9 @@ function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
               <div key={step.status} className="flex flex-col items-center relative z-10 space-y-2">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
-                    isCurrent && isObserved
+                    isCurrent && isRejected
+                      ? 'bg-rose-600 text-white ring-4 ring-rose-200 shadow-md'
+                      : isCurrent && isObserved
                       ? 'bg-rose-500 text-white ring-4 ring-rose-200 shadow-md animate-pulse'
                       : isCurrent
                       ? 'bg-amber-500 text-slate-950 font-black ring-4 ring-amber-200 shadow-md'
@@ -1541,7 +1567,9 @@ function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
                       : 'bg-white border-2 border-slate-300 text-slate-400'
                   }`}
                 >
-                  {isCurrent && isObserved ? (
+                  {isCurrent && isRejected ? (
+                    <XCircle className="w-4 h-4" />
+                  ) : isCurrent && isObserved ? (
                     <AlertTriangle className="w-4 h-4" />
                   ) : isPassed ? (
                     <Check className="w-4 h-4" />
@@ -1551,7 +1579,9 @@ function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
                 </div>
                 <span
                   className={`text-[11px] whitespace-nowrap text-center ${
-                    isCurrent && isObserved
+                    isCurrent && isRejected
+                      ? 'text-rose-700 font-extrabold'
+                      : isCurrent && isObserved
                       ? 'text-rose-600 font-extrabold'
                       : isCurrent
                       ? 'text-amber-800 font-extrabold'
@@ -1560,12 +1590,107 @@ function TimelineProgress({ currentStatus }: { currentStatus: Print3DStatus }) {
                       : 'text-slate-400 font-medium'
                   }`}
                 >
-                  {step.label}
+                  {isCurrent && isRejected ? 'Rechazada' : step.label}
                 </span>
               </div>
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// COMPONENTE: PANEL DE RECHAZO CON RELOJ REGRESIVO DE ELIMINACIÓN DE 48 HORAS
+// ----------------------------------------------------------------------------
+interface RejectionPanelProps {
+  request: Print3DRequest;
+}
+
+function RejectionPanel({ request }: RejectionPanelProps) {
+  const [timeLeft, setTimeLeft] = useState<{
+    hours: number;
+    minutes: number;
+    seconds: number;
+    expired: boolean;
+  }>({ hours: 0, minutes: 0, seconds: 0, expired: false });
+
+  useEffect(() => {
+    // Si no tiene observationExpiresAt pero está rechazada, calcular 48 horas desde createdAt
+    const expiresMs = request.observationExpiresAt
+      ? new Date(request.observationExpiresAt).getTime()
+      : new Date(request.createdAt).getTime() + 48 * 60 * 60 * 1000;
+
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = expiresMs - now;
+
+      if (diff <= 0) {
+        setTimeLeft({ hours: 0, minutes: 0, seconds: 0, expired: true });
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setTimeLeft({ hours, minutes, seconds, expired: false });
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [request.observationExpiresAt, request.createdAt]);
+
+  return (
+    <div className="bg-rose-50/80 border-2 border-rose-300 rounded-3xl p-6 sm:p-8 space-y-6 animate-in fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+            <XCircle className="w-6 h-6 text-rose-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-extrabold text-rose-950">
+              Solicitud Rechazada por Criterio Técnico
+            </h3>
+            <p className="text-xs text-rose-700 mt-0.5">
+              Esta solicitud no cumple con los criterios técnicos del HUB Tecnológico para fabricación en 3D.
+            </p>
+          </div>
+        </div>
+
+        {/* RELOJ REGRESIVO EN VIVO (HORAS : MINUTOS : SEGUNDOS) */}
+        <div className="bg-white rounded-2xl px-5 py-3 border border-rose-200 shadow-xs text-center shrink-0">
+          <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">
+            Eliminación Automática en:
+          </span>
+          {timeLeft.expired ? (
+            <span className="text-sm font-bold text-rose-700">Programada para eliminación</span>
+          ) : (
+            <div className="text-base sm:text-lg font-mono font-extrabold text-rose-800 tracking-wider mt-0.5 flex items-center justify-center gap-1.5">
+              <Timer className="w-4 h-4 text-rose-500 animate-spin" />
+              <span>
+                {String(timeLeft.hours).padStart(2, '0')}h : {String(timeLeft.minutes).padStart(2, '0')}m : {String(timeLeft.seconds).padStart(2, '0')}s
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recuadro claro con motivo del rechazo */}
+      <div className="bg-white rounded-2xl p-5 border border-rose-200 text-xs text-slate-800 space-y-2 shadow-2xs">
+        <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wider block">
+          Motivo del Rechazo Técnico:
+        </span>
+        <p className="italic font-medium text-slate-800 leading-relaxed text-xs sm:text-sm">
+          {request.observationComment
+            ? `“${request.observationComment}”`
+            : 'No se detalló un motivo específico. Consulta con el equipo técnico del HUB Tecnológico para más información.'}
+        </p>
+        <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+          Conforme a las condiciones del HUB Tecnológico, las solicitudes rechazadas son eliminadas definitivamente del sistema transcurridas 48 horas desde su rechazo. Si deseas replantear el proyecto con una geometría corregida, podrás ingresar una nueva solicitud.
+        </p>
       </div>
     </div>
   );

@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     ).length;
 
     const active3DPrintsCount = db.prints.filter(
-      (p) => p.status !== 'ENTREGADA'
+      (p) => p.status !== 'ENTREGADA' && p.status !== 'RECHAZADA'
     ).length;
 
     const observed3DPrintsCount = db.prints.filter(

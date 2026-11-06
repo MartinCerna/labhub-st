@@ -53,6 +53,7 @@ import {
   dbRepository,
   createSampleBinaryStlBuffer,
   LabHubDatabase,
+  normalizeDatabase,
 } from '@/lib/storage/db';
 import { AdminSessionUser, AdvisoryRequest, LabReservation } from '@/types/labhub';
 
@@ -63,6 +64,7 @@ import { GET as getAdvisorSchedule } from '@/app/api/advisors/schedule/route';
 import { POST as postAdvisory } from '@/app/api/advisories/route';
 import { GET as getLoans, POST as postLoan, PATCH as patchLoan } from '@/app/api/loans/route';
 import { GET as getPrints, POST as postPrint, PATCH as patchPrint } from '@/app/api/prints/route';
+import { POST as postResubmit } from '@/app/api/prints/[code]/resubmit/route';
 
 describe('LabHub ST — Suite Integral de Pruebas de Calidad (QA)', () => {
   // Snapshot para restaurar db.json al finalizar y no alterar los datos demo
@@ -1035,6 +1037,107 @@ endsolid test_cube`;
       const lastHistory = observedPrint.statusHistory[observedPrint.statusHistory.length - 1];
       expect(lastHistory.status).toBe('OBSERVADO');
       expect(lastHistory.actor).toContain('Carlos Mendoza');
+
+      // 6. PATCH rechazo a RECHAZADA sin comentario explicativo -> 400
+      const patchRejectNoCommentReq = new NextRequest('http://localhost:3000/api/prints', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `${AUTH_COOKIE_NAME}=${adminToken}`,
+        },
+        body: JSON.stringify({
+          id: createdPrint.id,
+          status: 'RECHAZADA',
+        }),
+      });
+      const patchRejectNoCommentRes = await patchPrint(patchRejectNoCommentReq);
+      expect(patchRejectNoCommentRes.status).toBe(400);
+      const patchRejectNoCommentJson = await patchRejectNoCommentRes.json();
+      expect(patchRejectNoCommentJson.error).toContain('obligatorio detallar el motivo');
+
+      // 7. PATCH con cambio a RECHAZADA con observationComment técnico y +48 horas
+      const rejectionReason = 'Geometría con socavados imposibles sin soporte y espesor de 0.2mm';
+      const patchRejectReq = new NextRequest('http://localhost:3000/api/prints', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `${AUTH_COOKIE_NAME}=${adminToken}`,
+        },
+        body: JSON.stringify({
+          id: createdPrint.id,
+          status: 'RECHAZADA',
+          observationComment: rejectionReason,
+        }),
+      });
+
+      const patchRejectRes = await patchPrint(patchRejectReq);
+      expect(patchRejectRes.status).toBe(200);
+      const patchRejectJson = await patchRejectRes.json();
+      const rejectedPrint = patchRejectJson.printRequest;
+
+      expect(rejectedPrint.status).toBe('RECHAZADA');
+      expect(rejectedPrint.observationComment).toBe(rejectionReason);
+      expect(rejectedPrint.observedAt).toBeDefined();
+      expect(rejectedPrint.observationExpiresAt).toBeDefined();
+
+      const rejectObservedAtMs = new Date(rejectedPrint.observedAt).getTime();
+      const rejectExpiresAtMs = new Date(rejectedPrint.observationExpiresAt).getTime();
+      const rejectDiffHours = (rejectExpiresAtMs - rejectObservedAtMs) / (1000 * 60 * 60);
+      expect(rejectDiffHours).toBeCloseTo(48, 2);
+
+      const lastRejectHistory = rejectedPrint.statusHistory[rejectedPrint.statusHistory.length - 1];
+      expect(lastRejectHistory.status).toBe('RECHAZADA');
+      expect(lastRejectHistory.actor).toContain('Carlos Mendoza');
+
+      // 8. Intentar subsanar un ticket en estado RECHAZADA (POST /api/prints/[code]/resubmit) retorna 400
+      const resubmitReq = new NextRequest(`http://localhost:3000/api/prints/${createdPrint.code}/resubmit`, {
+        method: 'POST',
+      });
+      const resubmitRes = await postResubmit(resubmitReq, {
+        params: Promise.resolve({ code: createdPrint.code }),
+      });
+      expect(resubmitRes.status).toBe(400);
+      const resubmitJson = await resubmitRes.json();
+      expect(resubmitJson.error).toContain('no admite subsanación de archivos');
+
+      // 9. Al evaluar db.prints con observationExpiresAt vencido (> 48h) en estado RECHAZADA, el ticket es depurado automáticamente
+      // 9a. Verificación a través de dbRepository.getDatabase()
+      await dbRepository.updateDatabase((db) => {
+        const item = db.prints.find((p) => p.id === createdPrint.id);
+        if (item) {
+          // Vencido hace más de 48 horas (49 horas antes de ahora)
+          item.observationExpiresAt = new Date(Date.now() - 49 * 3600 * 1000).toISOString();
+        }
+      });
+
+      const freshDb = await dbRepository.getDatabase();
+      const purgedPrint = freshDb.prints.find((p) => p.id === createdPrint.id);
+      expect(purgedPrint).toBeUndefined();
+
+      // 9b. Verificación directa con normalizeDatabase
+      const dummyDbForPurge: LabHubDatabase = {
+        ...freshDb,
+        prints: [
+          {
+            ...createdPrint,
+            id: 'expired-rechazada-unit-id',
+            code: '3DP-2026-EXPIRED',
+            status: 'RECHAZADA',
+            observationExpiresAt: new Date(Date.now() - 49 * 3600 * 1000).toISOString(),
+          },
+          {
+            ...createdPrint,
+            id: 'active-rechazada-unit-id',
+            code: '3DP-2026-ACTIVE',
+            status: 'RECHAZADA',
+            observationExpiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+          },
+        ],
+      };
+
+      const normalizedDb = normalizeDatabase(dummyDbForPurge);
+      expect(normalizedDb.prints.some((p) => p.id === 'expired-rechazada-unit-id')).toBe(false);
+      expect(normalizedDb.prints.some((p) => p.id === 'active-rechazada-unit-id')).toBe(true);
     });
   });
 });

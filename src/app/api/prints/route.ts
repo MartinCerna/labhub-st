@@ -219,11 +219,10 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (body.status === 'OBSERVADO' && !body.observationComment?.trim()) {
+    if ((body.status === 'OBSERVADO' || body.status === 'RECHAZADA') && !body.observationComment?.trim()) {
       return NextResponse.json(
         {
-          error:
-            'Para cambiar a estado OBSERVADO es obligatorio detallar el motivo de observación para el estudiante.',
+          error: `Para cambiar a estado ${body.status} es obligatorio detallar el motivo de ${body.status === 'RECHAZADA' ? 'rechazo' : 'observación'} para el estudiante.`,
         },
         { status: 400 }
       );
@@ -239,10 +238,10 @@ export async function PATCH(request: NextRequest) {
       printItem.status = body.status;
       printItem.updatedAt = now.toISOString();
 
-      if (body.status === 'OBSERVADO') {
+      if (body.status === 'OBSERVADO' || body.status === 'RECHAZADA') {
         printItem.observationComment = body.observationComment?.trim();
         printItem.observedAt = now.toISOString();
-        // Vencimiento exacto de 48 horas para subsanación
+        // Vencimiento exacto de 48 horas para subsanación o depuración
         printItem.observationExpiresAt = new Date(
           now.getTime() + OBSERVATION_WINDOW_HOURS * 3600 * 1000
         ).toISOString();

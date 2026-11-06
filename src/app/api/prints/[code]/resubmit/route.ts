@@ -37,6 +37,13 @@ export async function POST(
       );
     }
 
+    if (target.status === 'RECHAZADA') {
+      return NextResponse.json(
+        { error: 'Esta solicitud ha sido rechazada por el equipo de laboratorio y no admite subsanación de archivos.' },
+        { status: 400 }
+      );
+    }
+
     if (target.status !== 'OBSERVADO') {
       return NextResponse.json(
         {

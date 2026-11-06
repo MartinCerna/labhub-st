@@ -91,8 +91,13 @@ export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: A
     e.preventDefault();
     if (!editingRequest) return;
 
-    if (targetStatus === 'OBSERVADO' && !observationComment.trim()) {
-      showToast('El comentario de observación es obligatorio para el estado OBSERVADO.', 'warning');
+    if ((targetStatus === 'OBSERVADO' || targetStatus === 'RECHAZADA') && !observationComment.trim()) {
+      showToast(
+        targetStatus === 'RECHAZADA'
+          ? 'El motivo del rechazo técnico es obligatorio para el estado RECHAZADA.'
+          : 'El comentario de observación es obligatorio para el estado OBSERVADO.',
+        'warning'
+      );
       return;
     }
 
@@ -101,11 +106,13 @@ export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: A
       await apiClient.updatePrint3DStatus(
         editingRequest.id,
         targetStatus,
-        targetStatus === 'OBSERVADO' ? observationComment.trim() : undefined
+        (targetStatus === 'OBSERVADO' || targetStatus === 'RECHAZADA') ? observationComment.trim() : undefined
       );
       showToast(
         targetStatus === 'OBSERVADO'
           ? `Solicitud ${editingRequest.code} marcada como OBSERVADA. Se activó el plazo de 48 horas para subsanación.`
+          : targetStatus === 'RECHAZADA'
+          ? `Solicitud ${editingRequest.code} marcada como RECHAZADA. Se programó su eliminación automática en 48 horas.`
           : `Estado de la solicitud ${editingRequest.code} actualizado a ${targetStatus}.`,
         'success'
       );
@@ -164,9 +171,8 @@ export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: A
           <strong className="font-bold text-amber-950 dark:text-amber-100">
             Aviso de Depuración Automática:
           </strong>{' '}
-          Los tickets en estado <span className="font-bold text-rose-700 dark:text-rose-400">OBSERVADO</span> que superan las{' '}
-          <strong className="font-bold">48 horas</strong> sin subsanación por parte del estudiante son eliminados
-          automáticamente por el sistema para mantener la cola de fabricación eficiente.
+          Los tickets en estado <span className="font-bold text-rose-700 dark:text-rose-400">OBSERVADO</span> (sin subsanación) y <span className="font-bold text-rose-700 dark:text-rose-400">RECHAZADA</span> que superan las{' '}
+          <strong className="font-bold">48 horas</strong> son eliminados automáticamente por el sistema para mantener la cola de fabricación eficiente.
         </div>
       </div>
 
@@ -260,7 +266,7 @@ export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: A
         ) : (
           <div className="grid grid-cols-1 gap-5">
             {filteredRequests.map((req) => {
-              const timeLeft = req.status === 'OBSERVADO' ? getObservationTimeLeft(req.observationExpiresAt) : null;
+              const timeLeft = (req.status === 'OBSERVADO' || req.status === 'RECHAZADA') ? getObservationTimeLeft(req.observationExpiresAt) : null;
 
               return (
                 <div
@@ -286,17 +292,19 @@ export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: A
                         })}
                       </span>
 
-                      {/* Contador de 48h si está OBSERVADO */}
+                      {/* Contador de 48h si está OBSERVADO o RECHAZADA */}
                       {timeLeft && (
                         <span
                           className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
                             timeLeft.expired
                               ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                              : req.status === 'RECHAZADA'
+                              ? 'bg-rose-100 text-rose-800 border border-rose-300'
                               : 'bg-amber-100 text-amber-900 border border-amber-200 animate-pulse'
                           }`}
                         >
                           <Clock className="w-3.5 h-3.5" />
-                          {timeLeft.text} (Plazo 48h)
+                          {timeLeft.text} ({req.status === 'RECHAZADA' ? 'Eliminación en 48h' : 'Plazo 48h'})
                         </span>
                       )}
                     </div>
@@ -369,6 +377,22 @@ export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: A
                         {req.observationExpiresAt && (
                           <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400 font-semibold">
                             Plazo límite de subsanación: {new Date(req.observationExpiresAt).toLocaleString('es-PE')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Alerta de Rechazo si aplica */}
+                  {req.status === 'RECHAZADA' && req.observationComment && (
+                    <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-900 dark:text-rose-200 flex items-start gap-2.5">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-bold">Motivo del Rechazo Técnico:</p>
+                        <p className="mt-0.5 leading-relaxed italic">"{req.observationComment}"</p>
+                        {req.observationExpiresAt && (
+                          <p className="mt-1 text-[11px] text-rose-700 dark:text-rose-400 font-semibold">
+                            Fecha límite de eliminación automática (48h): {new Date(req.observationExpiresAt).toLocaleString('es-PE')}
                           </p>
                         )}
                       </div>
@@ -535,6 +559,35 @@ export function AdminPrints3DTab({ dashboard, onRefresh, initialSearchQuery }: A
                       onChange={(e) => setObservationComment(e.target.value)}
                       placeholder="ej. El grosor de pared en la base es menor a 0.8 mm y la geometría requiere orientación a 45° con soportes. Corregir y reenviar."
                       className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Si es RECHAZADA, requerir motivo técnico y advertir sobre 48h */}
+              {targetStatus === 'RECHAZADA' && (
+                <div className="space-y-2 animate-in fade-in">
+                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-900 dark:text-rose-200">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-rose-600" />
+                      Plazo de Eliminación Automática de 48 Horas
+                    </p>
+                    <p className="text-[11px] mt-1 leading-relaxed">
+                      Al marcar como <strong>RECHAZADA</strong> por criterio técnico, se notificará al estudiante y se iniciará un plazo de <strong>48 horas</strong> tras el cual el ticket será eliminado automáticamente del sistema.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-slate-600 dark:text-slate-300 mb-1">
+                      Motivo del Rechazo Técnico (Obligatorio)
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={observationComment}
+                      onChange={(e) => setObservationComment(e.target.value)}
+                      placeholder="ej. La geometría presenta voladizos de más de 60° sin soporte, paredes menores a 0.8 mm y sobredimensión crítica no apta para manufactura FDM."
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
                     />
                   </div>
                 </div>

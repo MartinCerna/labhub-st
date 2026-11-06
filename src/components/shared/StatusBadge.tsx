@@ -78,6 +78,12 @@ function getStatusConfig(status: string): BadgeConfig {
         className: 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse',
         icon: AlertTriangle,
       };
+    case 'RECHAZADA':
+      return {
+        label: 'Rechazada',
+        className: 'bg-rose-50 text-rose-700 border-rose-300 font-bold',
+        icon: XCircle,
+      };
     case 'EN COLA':
       return {
         label: 'En Cola',

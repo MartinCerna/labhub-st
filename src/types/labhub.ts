@@ -334,6 +334,7 @@ export type Print3DStatus =
   | 'ENVIADO'
   | 'EN REVISION'
   | 'OBSERVADO'
+  | 'RECHAZADA'
   | 'EN COLA'
   | 'IMPRIMIENDO'
   | 'LISTA'

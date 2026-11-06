@@ -894,10 +894,10 @@ export function normalizeDatabase(db: LabHubDatabase): LabHubDatabase {
   if (Array.isArray(db.prints)) {
     const nowMs = Date.now();
     db.prints = db.prints.filter((p) => {
-      if (p.status === 'OBSERVADO' && p.observationExpiresAt) {
+      if ((p.status === 'OBSERVADO' || p.status === 'RECHAZADA') && p.observationExpiresAt) {
         const expMs = new Date(p.observationExpiresAt).getTime();
         if (!Number.isNaN(expMs) && expMs <= nowMs) {
-          return false; // Ticket eliminado automáticamente tras vencer las 48h sin subsanación
+          return false; // Ticket eliminado automáticamente tras vencer las 48h
         }
       }
       return true;
