@@ -1021,7 +1021,8 @@ async function writeDatabaseRaw(db: LabHubDatabase): Promise<void> {
 // API PÚBLICA DEL REPOSITORIO DE BASE DE DATOS
 // ============================================================================
 
-let coldStartHydrated = false;
+let coldStartHydrationPromise: Promise<void> | null = null;
+let coldStartHydrationFailed = false;
 let cloudPushTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleBackgroundCloudSnapshotPush(db: LabHubDatabase): void {
@@ -1029,6 +1030,22 @@ function scheduleBackgroundCloudSnapshotPush(db: LabHubDatabase): void {
   if (!db.googleConfig?.enabled || db.googleConfig.persistFullStateInDrive === false) {
     return;
   }
+
+  // Protección anti-pérdida de datos:
+  // No permitir que un push automático en segundo plano sobrescriba la nube si la base de datos
+  // local está completamente vacía de actividad y la hidratación inicial falló por red.
+  const isActivityEmpty =
+    (!db.advisories || db.advisories.length === 0) &&
+    (!db.reservations || db.reservations.length === 0) &&
+    (!db.slotBlocks || db.slotBlocks.length === 0);
+
+  if (isActivityEmpty && coldStartHydrationFailed) {
+    console.warn(
+      '[CloudStorage] Push automático en segundo plano omitido: la base de datos local está completamente vacía de actividad y la hidratación inicial falló por red.'
+    );
+    return;
+  }
+
   if (cloudPushTimer) {
     clearTimeout(cloudPushTimer);
   }
@@ -1039,21 +1056,82 @@ function scheduleBackgroundCloudSnapshotPush(db: LabHubDatabase): void {
   }, 800);
 }
 
-async function tryColdStartCloudHydration(): Promise<void> {
-  if (coldStartHydrated || process.env.VITEST) return;
-  coldStartHydrated = true;
-
-  const hasEnvCloud =
-    Boolean(process.env.GOOGLE_APPS_SCRIPT_URL) ||
-    Boolean(process.env.ONEDRIVE_REFRESH_TOKEN);
-  if (!hasEnvCloud) return;
-
-  try {
-    const { googleBridge } = await import('@/lib/google/bridge');
-    await googleBridge.pullStateFromCloud();
-  } catch {
-    // Continuar con estado local si la nube aún no tiene snapshot previo
+function tryColdStartCloudHydration(): Promise<void> {
+  if (process.env.VITEST) return Promise.resolve();
+  if (coldStartHydrationPromise) {
+    return coldStartHydrationPromise;
   }
+
+  coldStartHydrationPromise = (async () => {
+    try {
+      const localDb = await readDatabaseRaw();
+      const provider = localDb.googleConfig?.activeProvider || 'GOOGLE_DRIVE';
+
+      if (provider === 'ONEDRIVE' && localDb.googleConfig?.onedrive?.refreshToken) {
+        try {
+          const { oneDriveClient } = await import('@/lib/cloud/onedrive-client');
+          const remoteState = await oneDriveClient.loadDatabaseSnapshot(localDb.googleConfig.onedrive);
+          if (remoteState) {
+            await dbRepository.replaceDatabaseState(remoteState);
+            coldStartHydrationFailed = false;
+          }
+        } catch (e) {
+          coldStartHydrationFailed = true;
+          console.warn('[ColdStart] Error al hidratar base de datos desde Microsoft OneDrive:', e);
+        }
+        return;
+      }
+
+      // Proveedor GOOGLE_DRIVE (por defecto)
+      const webhookUrl = localDb.googleConfig?.appsScriptWebhookUrl || DEFAULT_GOOGLE_WEBHOOK_URL;
+      if (webhookUrl) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+        try {
+          const res = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              action: 'GET_STATE',
+              webhookSecret: localDb.googleConfig?.webhookSecret || '',
+              payload: {},
+            }),
+            signal: controller.signal,
+          });
+
+          if (res.ok) {
+            const json = (await res.json()) as { ok?: boolean; state?: any; error?: string };
+            if (json && json.ok && json.state) {
+              await dbRepository.replaceDatabaseState(json.state);
+              coldStartHydrationFailed = false;
+            } else if (json && json.ok === false) {
+              coldStartHydrationFailed = true;
+              console.warn('[ColdStart] Google Apps Script reportó error en GET_STATE:', json.error);
+            }
+          } else {
+            coldStartHydrationFailed = true;
+            console.warn(`[ColdStart] Webhook respondió con status HTTP ${res.status}`);
+          }
+        } catch (e) {
+          coldStartHydrationFailed = true;
+          console.warn('[ColdStart] Error de red al hidratar base de datos desde Google Drive:', e);
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      }
+    } catch (e) {
+      coldStartHydrationFailed = true;
+      console.warn('[ColdStart] Error general durante arranque en frío:', e);
+    } finally {
+      if (coldStartHydrationFailed) {
+        coldStartHydrationPromise = null;
+      }
+    }
+  })();
+
+  return coldStartHydrationPromise;
 }
 
 export const dbRepository = {
@@ -1231,4 +1309,18 @@ export const dbRepository = {
     }
     return fs.readFileSync(filePath);
   },
+};
+
+export const _storageTesting = {
+  tryColdStartCloudHydration,
+  scheduleBackgroundCloudSnapshotPush,
+  getColdStartHydrationPromise: () => coldStartHydrationPromise,
+  resetColdStartHydrationForTest: () => {
+    coldStartHydrationPromise = null;
+    coldStartHydrationFailed = false;
+  },
+  setColdStartHydrationFailed: (val: boolean) => {
+    coldStartHydrationFailed = val;
+  },
+  isColdStartHydrationFailed: () => coldStartHydrationFailed,
 };

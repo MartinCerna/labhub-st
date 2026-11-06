@@ -7,7 +7,7 @@ import {
   extractSignaturePngBuffer,
 } from '@/lib/documents/loan-document';
 import { oneDriveClient } from '@/lib/cloud/onedrive-client';
-import { dbRepository, LabHubDatabase } from '@/lib/storage/db';
+import { dbRepository, LabHubDatabase, _storageTesting } from '@/lib/storage/db';
 import { googleBridge } from '@/lib/google/bridge';
 import { buildAdvisoryCalendarDetails, buildGoogleCalendarUrl } from '@/lib/calendar/ics';
 import { EquipmentLoan, AdvisoryRequest } from '@/types/labhub';
@@ -138,6 +138,84 @@ describe('Suite de Pruebas Backend — Documentos, OneDrive y Almacenamiento en 
 
       // Restaurar estado
       await dbRepository.replaceDatabaseState(current);
+    });
+
+    it('debe compartir una única promesa en frío (coldStartHydrationPromise) ante peticiones concurrentes y consultar GET_STATE', async () => {
+      const originalVitest = process.env.VITEST;
+      _storageTesting.resetColdStartHydrationForTest();
+
+      const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (url, init) => {
+        const body = JSON.parse((init?.body as string) || '{}');
+        if (body.action === 'GET_STATE') {
+          return {
+            ok: true,
+            json: async () => ({
+              ok: true,
+              state: {
+                advisories: [],
+                reservations: [],
+                slotBlocks: [],
+              },
+            }),
+          } as Response;
+        }
+        return { ok: false } as Response;
+      });
+
+      try {
+        delete process.env.VITEST;
+
+        // Dos llamadas concurrentes
+        const p1 = _storageTesting.tryColdStartCloudHydration();
+        const p2 = _storageTesting.tryColdStartCloudHydration();
+
+        // Comprobar que p1 y p2 devuelven exactamente la misma promesa compartida
+        expect(p1).toBe(p2);
+        expect(_storageTesting.getColdStartHydrationPromise()).toBe(p1);
+
+        await Promise.all([p1, p2]);
+
+        // Debe haberse llamado fetch exactamente 1 vez con GET_STATE
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        const [callUrl, callOptions] = fetchSpy.mock.calls[0];
+        expect(callUrl).toContain('script.google.com');
+        const parsedBody = JSON.parse((callOptions?.body as string) || '{}');
+        expect(parsedBody.action).toBe('GET_STATE');
+      } finally {
+        process.env.VITEST = originalVitest;
+        fetchSpy.mockRestore();
+        _storageTesting.resetColdStartHydrationForTest();
+      }
+    });
+
+    it('debe proteger contra sobreescritura en la nube si la BD local está vacía y la hidratación falló por red', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const originalVitest = process.env.VITEST;
+
+      try {
+        delete process.env.VITEST;
+        _storageTesting.setColdStartHydrationFailed(true);
+
+        const emptyDb = {
+          advisories: [],
+          reservations: [],
+          slotBlocks: [],
+          googleConfig: {
+            enabled: true,
+            persistFullStateInDrive: true,
+          },
+        } as unknown as LabHubDatabase;
+
+        _storageTesting.scheduleBackgroundCloudSnapshotPush(emptyDb);
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Push automático en segundo plano omitido')
+        );
+      } finally {
+        process.env.VITEST = originalVitest;
+        warnSpy.mockRestore();
+        _storageTesting.resetColdStartHydrationForTest();
+      }
     });
   });
 
