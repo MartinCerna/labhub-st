@@ -103,11 +103,18 @@ export function AdminAdvisoriesTab({ dashboard, onRefresh, initialSearchQuery }:
   const handleSyncCalendar = async (adv: AdvisoryRequest, blocksText: string) => {
     try {
       setSyncingId(adv.id);
-      await apiClient.updateAdvisoryStatus(adv.id, adv.status);
-      showToast(
-        `Horario de asesoría sincronizado con el calendario (${blocksText}).`,
-        'success'
-      );
+      const res = await apiClient.updateAdvisoryStatus(adv.id, adv.status);
+      if (res.syncResult?.outdatedAppsScript) {
+        showToast(
+          '⚠️ Tu Webhook en script.google.com aún ejecuta la versión antigua (8am-10am). Se bloqueó el envío erróneo. Ve a la pestaña Nube, copia el nuevo código (.gs) y publícalo como Nueva Versión en script.google.com.',
+          'warning'
+        );
+      } else {
+        showToast(
+          `Horario de asesoría sincronizado con el calendario (${blocksText}).`,
+          'success'
+        );
+      }
       await onRefresh();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al sincronizar el calendario.';

@@ -257,7 +257,10 @@ export const apiClient = {
     id: string,
     status: AdvisoryRequest['status']
   ) =>
-    requestJson<{ advisory: AdvisoryRequest }>('/api/advisories', {
+    requestJson<{
+      advisory: AdvisoryRequest;
+      syncResult?: { synced: boolean; outdatedAppsScript?: boolean };
+    }>('/api/advisories', {
       method: 'PATCH',
       body: JSON.stringify({ id, status }),
     }),

@@ -1646,7 +1646,7 @@
   ],
   "googleConfig": {
     "enabled": true,
-    "activeProvider": "GOOGLE_DRIVE",
+    "activeProvider": "ONEDRIVE",
     "appsScriptWebhookUrl": "https://script.google.com/macros/s/AKfycbyvaLcBQXOv4XfD5LUqhYNauu6LOEUyHkmgmSyZTDeBDtP6A75FlN1UYn0GOJy8d2ZA/exec",
     "webhookSecret": "",
     "driveFolderName": "LabHub_ST_UPN",

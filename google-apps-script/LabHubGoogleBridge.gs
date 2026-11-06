@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LABHUB ST (UPN) — PUENTE MAESTRO GOOGLE WORKSPACE & GOOGLE DRIVE v2.0
+ * LABHUB ST (UPN) — PUENTE MAESTRO GOOGLE WORKSPACE & GOOGLE DRIVE v2.2
  * Google Apps Script Webhook Service — Bidireccional Completo
  * 
  * Este script se aloja en https://script.google.com en la cuenta de Google
@@ -143,8 +143,9 @@ function doGet(e) {
 
   return jsonResponse({
     ok: true,
-    service: "LabHub ST UPN — Google Bridge v2.0",
+    service: "LabHub ST UPN — Google Bridge v2.2",
     status: "ONLINE",
+    scriptVersion: "2.2",
     message: "El puente de Google Workspace está activo y sincronizado.",
     driveRootFolderUrl: rootFolder.getUrl(),
     spreadsheetUrl: spreadsheet.getUrl(),
@@ -164,6 +165,7 @@ function handlePingInit(rootFolder, spreadsheet) {
 
   return {
     ok: true,
+    scriptVersion: "2.2",
     message: "Conexión bidireccional exitosa con Google Workspace y Google Drive.",
     driveRootFolderUrl: rootFolder.getUrl(),
     spreadsheetUrl: spreadsheet.getUrl(),
@@ -391,6 +393,7 @@ function handleSyncAdvisory(spreadsheet, payload) {
 
   return {
     ok: true,
+    scriptVersion: "2.2",
     code: adv.code,
     calendarCreated: calResult.calendarCreated,
     eventUrl: calResult.eventUrl,
@@ -404,7 +407,8 @@ function syncAdvisoriesCalendar_(adv, payload, studentsText) {
   var calendarCreated = false;
   var eventUrl = "";
   try {
-    if (payload.syncCalendar !== false && adv.date && adv.advisorEmail) {
+    var shouldSyncCal = payload.syncCalendarV2 !== undefined ? Boolean(payload.syncCalendarV2) : (payload.syncCalendar !== false);
+    if (shouldSyncCal && adv.date && adv.advisorEmail) {
       var TIME_BLOCK_MAP = {
         'B1': { startTime: '07:30', endTime: '09:00', order: 1 },
         'B2': { startTime: '09:10', endTime: '10:40', order: 2 },
@@ -472,15 +476,31 @@ function syncAdvisoriesCalendar_(adv, payload, studentsText) {
       var dayStart = new Date(adv.date + "T00:00:00-05:00");
       var dayEnd = new Date(adv.date + "T23:59:59-05:00");
       var dayEvents = defaultCal.getEvents(dayStart, dayEnd);
-      var existingEvent = null;
+      var validEvent = null;
 
       for (var i = 0; i < dayEvents.length; i++) {
         var ev = dayEvents[i];
-        if (ev.getTitle().indexOf(adv.code) !== -1) {
-          existingEvent = ev;
-          break;
+        var title = ev.getTitle() || "";
+        var desc = ev.getDescription() || "";
+        if (title.indexOf(adv.code) !== -1 || desc.indexOf(adv.code) !== -1) {
+          var existingEvent = ev;
+          var timeChanged =
+            existingEvent.getStartTime().getTime() !== startTime.getTime() ||
+            existingEvent.getEndTime().getTime() !== endTime.getTime();
+
+          if (!timeChanged && !validEvent) {
+            validEvent = existingEvent;
+          } else {
+            // Eliminar duplicados o eventos con horario incorrecto/antiguo (ej. bug 8am-10am)
+            try {
+              existingEvent.deleteEvent();
+            } catch (delErr) {
+              Logger.log("Error al eliminar evento duplicado u obsoleto: " + delErr.toString());
+            }
+          }
         }
       }
+      var existingEvent = validEvent;
 
       var eventOptions = {
         description: description,
@@ -491,23 +511,11 @@ function syncAdvisoriesCalendar_(adv, payload, studentsText) {
 
       var event = null;
       if (existingEvent) {
-        var timeChanged =
-          existingEvent.getStartTime().getTime() !== startTime.getTime() ||
-          existingEvent.getEndTime().getTime() !== endTime.getTime();
-
-        if (timeChanged) {
-          existingEvent.deleteEvent();
-          event = defaultCal.createEvent(eventTitle, startTime, endTime, eventOptions);
-          if (event) {
-            calendarCreated = true;
-          }
-        } else {
-          existingEvent.setTitle(eventTitle);
-          existingEvent.setDescription(description);
-          existingEvent.setLocation(eventLocation);
-          event = existingEvent;
-          calendarCreated = true;
-        }
+        existingEvent.setTitle(eventTitle);
+        existingEvent.setDescription(description);
+        existingEvent.setLocation(eventLocation);
+        event = existingEvent;
+        calendarCreated = true;
       } else {
         event = defaultCal.createEvent(eventTitle, startTime, endTime, eventOptions);
         if (event) {

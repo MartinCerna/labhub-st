@@ -419,11 +419,12 @@ export async function PATCH(request: NextRequest) {
       return advisory;
     });
 
+    let syncResult: { synced: boolean; outdatedAppsScript?: boolean } | undefined;
     if (updatedAdvisory.status === 'PROGRAMADA' || resyncCalendar) {
-      await googleBridge.syncAdvisory(updatedAdvisory);
+      syncResult = await googleBridge.syncAdvisory(updatedAdvisory);
     }
 
-    return NextResponse.json({ advisory: updatedAdvisory });
+    return NextResponse.json({ advisory: updatedAdvisory, syncResult });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error al actualizar asesoría';
     return NextResponse.json({ error: message }, { status: 400 });

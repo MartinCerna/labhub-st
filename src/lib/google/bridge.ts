@@ -16,6 +16,7 @@ import {
 
 interface GoogleBridgeResponse {
   ok: boolean;
+  scriptVersion?: string;
   message?: string;
   error?: string;
   spreadsheetUrl?: string;
@@ -553,9 +554,11 @@ export const googleBridge = {
     }
   },
 
-  syncAdvisory: async (advisory: AdvisoryRequest): Promise<void> => {
+  syncAdvisory: async (
+    advisory: AdvisoryRequest
+  ): Promise<{ synced: boolean; outdatedAppsScript?: boolean }> => {
     const db = await dbRepository.getDatabase();
-    if (!db.googleConfig.enabled) return;
+    if (!db.googleConfig.enabled) return { synced: false };
 
     const sortedBlocks = [...(advisory.blockIds || [])].sort(
       (a, b) => (TIME_BLOCK_MAP[a]?.order ?? 0) - (TIME_BLOCK_MAP[b]?.order ?? 0)
@@ -591,35 +594,52 @@ export const googleBridge = {
         { skipCloudStatePush: true }
       );
       await pushStateSnapshotIfEnabled();
-      return;
+      return { synced: true, outdatedAppsScript: false };
     }
 
     if (db.googleConfig.appsScriptWebhookUrl) {
-      sendGoogleWebhookRequest('SYNC_ADVISORY', {
+      const res = await sendGoogleWebhookRequest('SYNC_ADVISORY', {
         advisory,
         startTime,
         endTime,
         blocksLabel,
-        syncCalendar: db.googleConfig.syncCalendarAndEmail,
+        syncCalendar: false, // Kill-switch: impide que un script v2.0 antiguo en script.google.com cree eventos de 8am-10am
+        syncCalendarV2: db.googleConfig.syncCalendarAndEmail, // Activa el calendario corregido (UTC-5) únicamente si script.google.com tiene v2.2+
         syncSheets: db.googleConfig.syncRecordsToSheets,
-      }).then(async (res) => {
-        if (res && res.ok) {
-          await dbRepository.updateDatabase(
-            (database) => {
-              const item = database.advisories.find((a) => a.id === advisory.id);
-              if (item) {
-                item.calendarNotified = true;
-                try {
-                  item.calendarEventUrl = buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(item));
-                } catch {}
-              }
-            },
-            { skipCloudStatePush: true }
-          );
-        }
-        await pushStateSnapshotIfEnabled();
       });
+
+      if (res && res.ok) {
+        const isUpdatedScript = Boolean(res.scriptVersion);
+
+        await dbRepository.updateDatabase(
+          (database) => {
+            const item = database.advisories.find((a) => a.id === advisory.id);
+            if (item) {
+              if (isUpdatedScript) {
+                item.calendarNotified = true;
+              }
+              try {
+                item.calendarEventUrl = buildGoogleCalendarUrl(buildAdvisoryCalendarDetails(item));
+              } catch {}
+            }
+          },
+          { skipCloudStatePush: true }
+        );
+
+        await pushStateSnapshotIfEnabled();
+
+        if (!isUpdatedScript && db.googleConfig.syncCalendarAndEmail !== false) {
+          return { synced: true, outdatedAppsScript: true };
+        }
+
+        return { synced: true, outdatedAppsScript: false };
+      }
+
+      await pushStateSnapshotIfEnabled();
+      return { synced: false, outdatedAppsScript: false };
     }
+
+    return { synced: false };
   },
 
   syncLoan: async (loan: EquipmentLoan): Promise<void> => {
