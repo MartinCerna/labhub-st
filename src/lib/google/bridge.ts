@@ -603,13 +603,13 @@ export const googleBridge = {
         startTime,
         endTime,
         blocksLabel,
-        syncCalendar: false, // Kill-switch: impide que un script v2.0 antiguo en script.google.com cree eventos de 8am-10am
-        syncCalendarV2: db.googleConfig.syncCalendarAndEmail, // Activa el calendario corregido (UTC-5) únicamente si script.google.com tiene v2.2+
+        syncCalendar: db.googleConfig.syncCalendarAndEmail,
+        syncCalendarV2: db.googleConfig.syncCalendarAndEmail,
         syncSheets: db.googleConfig.syncRecordsToSheets,
       });
 
       if (res && res.ok) {
-        const isUpdatedScript = Boolean(res.scriptVersion);
+        const isUpdatedScript = Boolean(res.scriptVersion || (res as any).eventUrl !== undefined);
 
         await dbRepository.updateDatabase(
           (database) => {
