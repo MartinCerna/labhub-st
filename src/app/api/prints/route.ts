@@ -7,7 +7,12 @@ import {
 } from '@/types/labhub';
 import { OBSERVATION_WINDOW_HOURS, PRINT_3D_STATUSES } from '@/constants/schedule';
 import { dbRepository } from '@/lib/storage/db';
-import { parseStlBuffer, validateStlFileName } from '@/lib/stl-parser';
+import {
+  exceedsMaxPrinterDimensions,
+  MAX_PRINTER_DIMENSION_MM,
+  parseStlBuffer,
+  validateStlFileName,
+} from '@/lib/stl-parser';
 import { getAdminSessionFromRequest, requireAdminSession } from '@/lib/auth';
 import { googleBridge } from '@/lib/google/bridge';
 
@@ -81,17 +86,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validar en memoria todos los archivos STL y sus dimensiones antes de guardar en disco
+    const parsedFiles: Array<{
+      file: File;
+      nodeBuffer: Buffer;
+      geometry: ReturnType<typeof parseStlBuffer>;
+    }> = [];
+
+    for (const f of uploadedFiles) {
+      const arrayBuffer = await f.arrayBuffer();
+      const geometry = parseStlBuffer(arrayBuffer);
+
+      if (exceedsMaxPrinterDimensions(geometry.dimensionsMm)) {
+        return NextResponse.json(
+          {
+            error: `El archivo "${f.name}" (${geometry.dimensionsMm.x} × ${geometry.dimensionsMm.y} × ${geometry.dimensionsMm.z} mm) supera las dimensiones máximas de la impresora (${MAX_PRINTER_DIMENSION_MM} × ${MAX_PRINTER_DIMENSION_MM} × ${MAX_PRINTER_DIMENSION_MM} mm). Por favor, corrige las dimensiones del modelo antes de enviarlo.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      parsedFiles.push({
+        file: f,
+        nodeBuffer: Buffer.from(arrayBuffer),
+        geometry,
+      });
+    }
+
     // Generar código antes de guardar archivos para organizar en carpeta específica
     const code = await dbRepository.getNextPrintCode();
     const stlMetadataList: StlFileMetadata[] = [];
 
-    for (let i = 0; i < uploadedFiles.length; i++) {
-      const f = uploadedFiles[i];
-      const arrayBuffer = await f.arrayBuffer();
-      const nodeBuffer = Buffer.from(arrayBuffer);
-
-      // Validación geométrica real (binario o ASCII)
-      const geometry = parseStlBuffer(arrayBuffer);
+    for (const item of parsedFiles) {
+      const { file: f, nodeBuffer, geometry } = item;
 
       // Guardar archivo en disco seguro
       const { storedFileName } = await dbRepository.saveStlFile(

@@ -27,6 +27,8 @@ import {
   validateStlFileName,
   parseStlBuffer,
   ParsedStlGeometry,
+  exceedsMaxPrinterDimensions,
+  MAX_PRINTER_DIMENSION_MM,
 } from '@/lib/stl-parser';
 import {
   generateIcsCalendar,
@@ -231,7 +233,7 @@ endsolid test_cube`;
       const buffer = Buffer.from(asciiCubeStl, 'utf-8');
       const arrayBuffer = toArrayBuffer(buffer);
 
-      const parsed: ParsedStlGeometry = parseStlBuffer(arrayBuffer);
+      const parsed: ParsedStlGeometry = parseStlBuffer(arrayBuffer, 8000);
       expect(parsed.format).toBe('ASCII');
       expect(parsed.triangleCount).toBe(2);
       expect(parsed.dimensionsMm.x).toBe(20);
@@ -267,7 +269,7 @@ endsolid test_cube`;
       buffer.writeUInt16LE(0, offset + 48);
 
       const arrayBuffer = toArrayBuffer(buffer);
-      const parsed = parseStlBuffer(arrayBuffer);
+      const parsed = parseStlBuffer(arrayBuffer, 8000);
 
       expect(parsed.format).toBe('BINARY');
       expect(parsed.triangleCount).toBe(1);
@@ -275,6 +277,9 @@ endsolid test_cube`;
       expect(parsed.dimensionsMm.y).toBe(45);
       expect(parsed.dimensionsMm.z).toBe(12);
       expect(parsed.previewTriangles.length).toBe(9);
+      expect(exceedsMaxPrinterDimensions(parsed.dimensionsMm)).toBe(false);
+      expect(exceedsMaxPrinterDimensions({ x: 205, y: 100, z: 50 })).toBe(true);
+      expect(MAX_PRINTER_DIMENSION_MM).toBe(200);
     });
 
     it('parseStlBuffer debe parsear prisma 3D binario generado por createSampleBinaryStlBuffer', () => {
@@ -881,6 +886,30 @@ endsolid test_cube`;
       expect(invalidRes.status).toBe(400);
       const invalidJson = await invalidRes.json();
       expect(invalidJson.error).toContain('extensión requerida .stl');
+
+      // 2b. POST rechazo por superar dimensiones máximas de la impresora (200x200x200 mm)
+      const oversizedStlBuf = createSampleBinaryStlBuffer(220, 150, 80);
+      const oversizedFile = new File(
+        [new Uint8Array(toArrayBuffer(oversizedStlBuf))],
+        'pieza_gigante.stl',
+        { type: 'application/octet-stream' }
+      );
+      const oversizedFd = new FormData();
+      oversizedFd.append('studentFullName', 'Estudiante 3D QA');
+      oversizedFd.append('upnCode', 'N00334455');
+      oversizedFd.append('teacherName', 'Fernando Aristides Saldaña Milla');
+      oversizedFd.append('course', 'Robótica Industrial y Móvil');
+      oversizedFd.append('nrc', '5840');
+      oversizedFd.append('file', oversizedFile);
+
+      const oversizedReq = new NextRequest('http://localhost:3000/api/prints', {
+        method: 'POST',
+        body: oversizedFd,
+      });
+      const oversizedRes = await postPrint(oversizedReq);
+      expect(oversizedRes.status).toBe(400);
+      const oversizedJson = await oversizedRes.json();
+      expect(oversizedJson.error).toContain('supera las dimensiones máximas de la impresora');
 
       // 3. POST exitoso con archivo STL binario
       const validStlBuf = createSampleBinaryStlBuffer(35, 35, 15);

@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { StlFileMetadata } from '@/types/labhub';
 import { dbRepository } from '@/lib/storage/db';
-import { parseStlBuffer, validateStlFileName } from '@/lib/stl-parser';
+import {
+  exceedsMaxPrinterDimensions,
+  MAX_PRINTER_DIMENSION_MM,
+  parseStlBuffer,
+  validateStlFileName,
+} from '@/lib/stl-parser';
 import { googleBridge } from '@/lib/google/bridge';
 
 export async function POST(
@@ -79,16 +84,39 @@ export async function POST(
       }
     }
 
+    // Validar en memoria todos los archivos y dimensiones antes de guardar en disco
+    const parsedFiles: Array<{
+      file: File;
+      nodeBuffer: Buffer;
+      geometry: ReturnType<typeof parseStlBuffer>;
+    }> = [];
+
+    for (const f of uploadedFiles) {
+      const arrayBuffer = await f.arrayBuffer();
+      const geometry = parseStlBuffer(arrayBuffer);
+
+      if (exceedsMaxPrinterDimensions(geometry.dimensionsMm)) {
+        return NextResponse.json(
+          {
+            error: `El archivo "${f.name}" (${geometry.dimensionsMm.x} × ${geometry.dimensionsMm.y} × ${geometry.dimensionsMm.z} mm) supera las dimensiones máximas de la impresora (${MAX_PRINTER_DIMENSION_MM} × ${MAX_PRINTER_DIMENSION_MM} × ${MAX_PRINTER_DIMENSION_MM} mm). Por favor, corrige las dimensiones del modelo antes de enviarlo.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      parsedFiles.push({
+        file: f,
+        nodeBuffer: Buffer.from(arrayBuffer),
+        geometry,
+      });
+    }
+
     const currentMaxVersion = target.files.reduce((acc, f) => Math.max(acc, f.version || 1), 1);
     const nextVersion = currentMaxVersion + 1;
     const newFilesMetadata: StlFileMetadata[] = [];
 
-    for (const f of uploadedFiles) {
-      const arrayBuffer = await f.arrayBuffer();
-      const nodeBuffer = Buffer.from(arrayBuffer);
-
-      // Validación de malla 3D
-      const geometry = parseStlBuffer(arrayBuffer);
+    for (const item of parsedFiles) {
+      const { file: f, nodeBuffer, geometry } = item;
 
       const { storedFileName } = await dbRepository.saveStlFile(
         cleanCode,

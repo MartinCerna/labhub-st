@@ -1,7 +1,20 @@
 // ============================================================================
 // PARSER Y VALIDADOR DE ARCHIVOS .STL (BINARIO Y ASCII)
-// Uso compartido entre Backend (validación y metadatos) y Frontend (Visor 3D)
+// Uso compartido entre Backend (validación y metadatos) y Frontend
 // ============================================================================
+
+export const MAX_PRINTER_DIMENSION_MM = 200;
+
+export function exceedsMaxPrinterDimensions(
+  dimensionsMm: { x: number; y: number; z: number },
+  limitMm = MAX_PRINTER_DIMENSION_MM
+): boolean {
+  return (
+    dimensionsMm.x > limitMm ||
+    dimensionsMm.y > limitMm ||
+    dimensionsMm.z > limitMm
+  );
+}
 
 export interface ParsedStlGeometry {
   format: 'BINARY' | 'ASCII';
@@ -12,7 +25,7 @@ export interface ParsedStlGeometry {
     z: number;
   };
   estimatedVolumeCm3: number;
-  /** Lista plana de triángulos [x1,y1,z1, x2,y2,z2, x3,y3,z3, ...] muestreada para renderizado ágil */
+  /** Lista plana de triángulos [x1,y1,z1, x2,y2,z2, x3,y3,z3, ...] muestreada para renderizado opcional */
   previewTriangles: Float32Array;
 }
 
@@ -22,7 +35,7 @@ export function validateStlFileName(fileName: string): boolean {
 
 export function parseStlBuffer(
   arrayBuffer: ArrayBuffer,
-  maxPreviewTriangles = 8000
+  maxPreviewTriangles = 0
 ): ParsedStlGeometry {
   if (!arrayBuffer || arrayBuffer.byteLength < 15) {
     throw new Error('El archivo .stl está vacío o corrupto.');
@@ -75,9 +88,10 @@ function parseBinaryStl(
     maxZ = -Infinity;
   let signedVolumeMm3 = 0;
 
-  const stride = Math.max(1, Math.ceil(triangleCount / maxPreviewTriangles));
-  const sampledCount = Math.ceil(triangleCount / stride);
-  const previewTriangles = new Float32Array(sampledCount * 9);
+  const shouldSample = maxPreviewTriangles > 0;
+  const stride = shouldSample ? Math.max(1, Math.ceil(triangleCount / maxPreviewTriangles)) : 0;
+  const sampledCount = shouldSample ? Math.ceil(triangleCount / stride) : 0;
+  const previewTriangles = shouldSample ? new Float32Array(sampledCount * 9) : new Float32Array(0);
   let pIdx = 0;
 
   for (let i = 0; i < triangleCount; i++) {
@@ -123,7 +137,7 @@ function parseBinaryStl(
         x3 * (y1 * z2 - y2 * z1)) /
       6.0;
 
-    if (i % stride === 0 && pIdx + 8 < previewTriangles.length) {
+    if (shouldSample && i % stride === 0 && pIdx + 8 < previewTriangles.length) {
       previewTriangles[pIdx++] = x1;
       previewTriangles[pIdx++] = y1;
       previewTriangles[pIdx++] = z1;
@@ -146,7 +160,7 @@ function parseBinaryStl(
     minZ,
     maxZ,
     signedVolumeMm3,
-    previewTriangles.subarray(0, pIdx)
+    shouldSample ? previewTriangles.subarray(0, pIdx) : previewTriangles
   );
 }
 
@@ -176,7 +190,8 @@ function parseAsciiStl(
     maxZ = -Infinity;
   let signedVolumeMm3 = 0;
 
-  const stride = Math.max(1, Math.ceil(triangleCount / maxPreviewTriangles));
+  const shouldSample = maxPreviewTriangles > 0;
+  const stride = shouldSample ? Math.max(1, Math.ceil(triangleCount / maxPreviewTriangles)) : 0;
   const previewList: number[] = [];
 
   for (let i = 0; i < triangleCount; i++) {
@@ -204,7 +219,7 @@ function parseAsciiStl(
         x3 * (y1 * z2 - y2 * z1)) /
       6.0;
 
-    if (i % stride === 0) {
+    if (shouldSample && i % stride === 0) {
       previewList.push(x1, y1, z1, x2, y2, z2, x3, y3, z3);
     }
   }
@@ -219,7 +234,7 @@ function parseAsciiStl(
     minZ,
     maxZ,
     signedVolumeMm3,
-    new Float32Array(previewList)
+    shouldSample ? new Float32Array(previewList) : new Float32Array(0)
   );
 }
 

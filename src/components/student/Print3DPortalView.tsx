@@ -45,6 +45,13 @@ import { parseStlBuffer, ParsedStlGeometry, validateStlFileName } from '@/lib/st
 import { useToast } from '@/components/shared/ToastProvider';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 
+export const MAX_PRINT_DIMENSION_MM = 200;
+
+export const isOversized = (dim: { x: number; y: number; z: number }) =>
+  dim.x > MAX_PRINT_DIMENSION_MM ||
+  dim.y > MAX_PRINT_DIMENSION_MM ||
+  dim.z > MAX_PRINT_DIMENSION_MM;
+
 interface StlLocalFile {
   file: File;
   parsed: ParsedStlGeometry;
@@ -114,6 +121,13 @@ export function Print3DPortalView({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [parsingFiles, setParsingFiles] = useState<boolean>(false);
 
+  // Detección preventiva de piezas con exceso dimensional (> 200×200×200 mm)
+  const oversizedFiles = useMemo(
+    () => stlLst.filter((item) => isOversized(item.parsed.dimensionsMm)),
+    [stlLst]
+  );
+  const hasOversizedFiles = oversizedFiles.length > 0;
+
   // Modal Visor STL 3D
   const [viewerFile, setViewerFile] = useState<{
     file?: File;
@@ -167,7 +181,8 @@ export function Print3DPortalView({
     if (fileArray.length === 0) return;
 
     setParsingFiles(true);
-    let addedCount = 0;
+    let addedValidCount = 0;
+    let addedOversizedCount = 0;
 
     for (const f of fileArray) {
       if (!validateStlFileName(f.name)) {
@@ -179,21 +194,20 @@ export function Print3DPortalView({
         const buffer = await f.arrayBuffer();
         const parsed = parseStlBuffer(buffer);
 
-        // Validación de dimensiones máximas: 20 × 20 × 20 cm = 200 × 200 × 200 mm
-        if (
-          parsed.dimensionsMm.x > 200 ||
-          parsed.dimensionsMm.y > 200 ||
-          parsed.dimensionsMm.z > 200
-        ) {
+        // Agregamos el archivo a la lista en memoria para que el estudiante visualice
+        // sus dimensiones detectadas y entienda cualquier observación dimensional.
+        setStlLst((prev) => [...prev, { file: f, parsed }]);
+
+        // Validación de dimensiones máximas: 200 × 200 × 200 mm
+        if (isOversized(parsed.dimensionsMm)) {
+          addedOversizedCount++;
           showToast(
-            `El archivo "${f.name}" (${parsed.dimensionsMm.x} × ${parsed.dimensionsMm.y} × ${parsed.dimensionsMm.z} mm) supera las dimensiones máximas permitidas de 20×20×20 cm (200×200×200 mm).`,
+            `El archivo "${f.name}" (${parsed.dimensionsMm.x} × ${parsed.dimensionsMm.y} × ${parsed.dimensionsMm.z} mm) supera las dimensiones máximas de la impresora (200 × 200 × 200 mm). Debes corregirlo antes de enviar.`,
             'error'
           );
-          continue;
+        } else {
+          addedValidCount++;
         }
-
-        setStlLst((prev) => [...prev, { file: f, parsed }]);
-        addedCount++;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Error al procesar STL';
         showToast(`Error en "${f.name}": ${msg}`, 'error');
@@ -201,8 +215,13 @@ export function Print3DPortalView({
     }
 
     setParsingFiles(false);
-    if (addedCount > 0) {
-      showToast(`Se añadieron y validaron ${addedCount} archivo(s) .stl con éxito.`, 'success');
+    if (addedValidCount > 0 && addedOversizedCount === 0) {
+      showToast(`Se añadieron y validaron ${addedValidCount} archivo(s) .stl con éxito.`, 'success');
+    } else if (addedValidCount > 0 && addedOversizedCount > 0) {
+      showToast(
+        `Se añadieron ${addedValidCount} archivo(s) válido(s) y ${addedOversizedCount} pieza(s) que superan el límite de 200×200×200 mm.`,
+        'warning'
+      );
     }
   };
 
@@ -235,6 +254,15 @@ export function Print3DPortalView({
 
     if (stlLst.length === 0) {
       showToast('Debes cargar al menos un archivo .stl válido para imprimir.', 'warning');
+      return;
+    }
+
+    // Bloqueo estricto en cliente: previene envíos que tumben el servicio
+    if (hasOversizedFiles) {
+      showToast(
+        'No se pueden enviar los archivos al servidor: una o más piezas superan el límite de la impresora de 200×200×200 mm. Debes corregirlas primero.',
+        'error'
+      );
       return;
     }
 
@@ -337,20 +365,16 @@ export function Print3DPortalView({
         const buf = await f.arrayBuffer();
         const parsed = parseStlBuffer(buf);
 
-        // Validación de dimensiones máximas: 20 × 20 × 20 cm = 200 × 200 × 200 mm
-        if (
-          parsed.dimensionsMm.x > 200 ||
-          parsed.dimensionsMm.y > 200 ||
-          parsed.dimensionsMm.z > 200
-        ) {
+        // Agregamos a resubmitFiles para que el estudiante visualice el modelo con sus dimensiones
+        setResubmitFiles((prev) => [...prev, { file: f, parsed }]);
+
+        // Validación de dimensiones máximas: 200 × 200 × 200 mm
+        if (isOversized(parsed.dimensionsMm)) {
           showToast(
-            `El archivo "${f.name}" (${parsed.dimensionsMm.x} × ${parsed.dimensionsMm.y} × ${parsed.dimensionsMm.z} mm) supera las dimensiones máximas permitidas de 20×20×20 cm (200×200×200 mm).`,
+            `El archivo "${f.name}" (${parsed.dimensionsMm.x} × ${parsed.dimensionsMm.y} × ${parsed.dimensionsMm.z} mm) supera las dimensiones máximas de la impresora (200 × 200 × 200 mm). Debes corregirlo antes de enviar.`,
             'error'
           );
-          continue;
         }
-
-        setResubmitFiles((prev) => [...prev, { file: f, parsed }]);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Error al procesar STL';
         showToast(`Error: ${msg}`, 'error');
@@ -361,6 +385,16 @@ export function Print3DPortalView({
   const handleResubmit = async (reqCode: string) => {
     if (resubmitFiles.length === 0) {
       showToast('Carga al menos un archivo .stl corregido para subsanar.', 'warning');
+      return;
+    }
+
+    // Bloqueo preventivo en cliente: previene envíos con piezas sobredimensionadas
+    const hasOversized = resubmitFiles.some((item) => isOversized(item.parsed.dimensionsMm));
+    if (hasOversized) {
+      showToast(
+        'No se pueden enviar los archivos al servidor: una o más piezas superan el límite de la impresora de 200×200×200 mm. Debes corregirlas primero.',
+        'error'
+      );
       return;
     }
 
@@ -547,7 +581,7 @@ export function Print3DPortalView({
                     Dimensiones máximas permitidas:
                   </strong>
                   <span className="text-slate-600 text-[11px] leading-relaxed">
-                    Las dimensiones máximas de impresión por modelo deben ser de <strong className="text-indigo-900 font-mono font-bold">20 × 20 × 20 cm (200 × 200 × 200 mm)</strong>.
+                    Las dimensiones máximas de impresión por modelo son de <strong className="text-indigo-900 font-mono font-bold">200 × 200 × 200 mm (20 × 20 × 20 cm)</strong>. Si alguna pieza supera las dimensiones de la impresora, el sistema bloqueará preventivamente el envío de los archivos al servidor hasta que sean corregidos.
                   </span>
                 </div>
               </div>
@@ -751,72 +785,198 @@ export function Print3DPortalView({
 
               {/* TARJETAS DE ARCHIVOS STL ANALIZADOS EN CLIENTE */}
               {stlLst.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  {stlLst.map((item, idx) => {
-                    const { file, parsed } = item;
-                    return (
-                      <div
-                        key={idx}
-                        className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3 flex flex-col justify-between"
-                      >
-                        <div>
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                                <FileCode2 className="w-5 h-5" />
+                <div className="space-y-4 pt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {stlLst.map((item, idx) => {
+                      const { file, parsed } = item;
+                      const oversized = isOversized(parsed.dimensionsMm);
+                      const xOver = parsed.dimensionsMm.x > MAX_PRINT_DIMENSION_MM;
+                      const yOver = parsed.dimensionsMm.y > MAX_PRINT_DIMENSION_MM;
+                      const zOver = parsed.dimensionsMm.z > MAX_PRINT_DIMENSION_MM;
+
+                      return (
+                        <div
+                          key={idx}
+                          className={`rounded-2xl p-4 shadow-2xs space-y-3 flex flex-col justify-between transition-all ${
+                            oversized
+                              ? 'bg-rose-50/70 border-2 border-rose-400 ring-2 ring-rose-200/50'
+                              : 'bg-white border border-slate-200'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                    oversized ? 'bg-rose-100 text-rose-700' : 'bg-indigo-50 text-indigo-600'
+                                  }`}
+                                >
+                                  {oversized ? (
+                                    <AlertTriangle className="w-5 h-5 text-rose-600" />
+                                  ) : (
+                                    <FileCode2 className="w-5 h-5" />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-xs font-bold text-slate-900 block truncate">
+                                    {file.name}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-mono">
+                                    {(file.size / 1024).toFixed(1)} KB • {parsed.format}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <span className="text-xs font-bold text-slate-900 block truncate">
-                                  {file.name}
-                                </span>
-                                <span className="text-[10px] text-slate-500 font-mono">
-                                  {(file.size / 1024).toFixed(1)} KB • {parsed.format}
-                                </span>
-                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveStl(idx)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Remover pieza"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveStl(idx)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="Remover pieza"
+                            {/* Tag destacado si supera el límite de la impresora */}
+                            {oversized && (
+                              <div className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 text-[10px] font-extrabold uppercase tracking-wide">
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                <span>SUPERA DIMENSIONES DE LA IMPRESORA (MÁX. 200×200×200 mm)</span>
+                              </div>
+                            )}
+
+                            {/* Estadísticas de Malla Calculadas */}
+                            <div
+                              className={`mt-3 grid grid-cols-2 gap-2 text-[11px] p-2.5 rounded-xl border ${
+                                oversized
+                                  ? 'bg-rose-100/50 border-rose-200 text-rose-950'
+                                  : 'bg-slate-50 border-slate-200'
+                              }`}
                             >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                              <div className="col-span-2 sm:col-span-1">
+                                <span className="text-slate-500 block text-[10px] uppercase font-bold">
+                                  Dimensiones (X×Y×Z):
+                                </span>
+                                <div className="font-mono text-xs flex flex-wrap items-center gap-1 mt-0.5">
+                                  <span
+                                    className={
+                                      xOver
+                                        ? 'text-rose-700 font-extrabold bg-rose-200/80 px-1 py-0.5 rounded'
+                                        : 'font-semibold text-slate-800'
+                                    }
+                                    title={xOver ? 'Eje X supera los 200 mm' : undefined}
+                                  >
+                                    {parsed.dimensionsMm.x}mm{xOver ? ' (X)' : ''}
+                                  </span>
+                                  <span className="text-slate-400">×</span>
+                                  <span
+                                    className={
+                                      yOver
+                                        ? 'text-rose-700 font-extrabold bg-rose-200/80 px-1 py-0.5 rounded'
+                                        : 'font-semibold text-slate-800'
+                                    }
+                                    title={yOver ? 'Eje Y supera los 200 mm' : undefined}
+                                  >
+                                    {parsed.dimensionsMm.y}mm{yOver ? ' (Y)' : ''}
+                                  </span>
+                                  <span className="text-slate-400">×</span>
+                                  <span
+                                    className={
+                                      zOver
+                                        ? 'text-rose-700 font-extrabold bg-rose-200/80 px-1 py-0.5 rounded'
+                                        : 'font-semibold text-slate-800'
+                                    }
+                                    title={zOver ? 'Eje Z supera los 200 mm' : undefined}
+                                  >
+                                    {parsed.dimensionsMm.z}mm{zOver ? ' (Z)' : ''}
+                                  </span>
+                                </div>
+                              </div>
 
-                          {/* Estadísticas de Malla Calculadas */}
-                          <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                            <div>
-                              <span className="text-slate-400 block text-[10px] uppercase font-bold">
-                                Dimensiones (X×Y×Z):
-                              </span>
-                              <span className="font-mono font-semibold text-slate-800">
-                                {parsed.dimensionsMm.x} × {parsed.dimensionsMm.y} ×{' '}
-                                {parsed.dimensionsMm.z} mm
-                              </span>
+                              <div className="col-span-2 sm:col-span-1">
+                                <span className="text-slate-500 block text-[10px] uppercase font-bold">
+                                  Volumen Estimado:
+                                </span>
+                                <span className="font-mono font-semibold text-indigo-600 block mt-0.5">
+                                  {parsed.estimatedVolumeCm3} cm³
+                                </span>
+                              </div>
+
+                              <div className="col-span-2 flex items-center justify-between">
+                                <span className="text-slate-500 text-[10px] uppercase font-bold">
+                                  Triángulos:
+                                </span>
+                                <span className="font-mono text-slate-700 text-[10px]">
+                                  {parsed.triangleCount.toLocaleString()} facetas
+                                </span>
+                              </div>
                             </div>
-                            <div>
-                              <span className="text-slate-400 block text-[10px] uppercase font-bold">
-                                Volumen Estimado:
-                              </span>
-                              <span className="font-mono font-semibold text-indigo-600">
-                                {parsed.estimatedVolumeCm3} cm³
-                              </span>
-                            </div>
-                            <div className="col-span-2">
-                              <span className="text-slate-400 text-[10px] uppercase font-bold mr-1">
-                                Triángulos:
-                              </span>
-                              <span className="font-mono text-slate-700">
-                                {parsed.triangleCount.toLocaleString()} facetas
-                              </span>
-                            </div>
+
+                            {oversized && (
+                              <div className="mt-2.5 p-2 bg-rose-100/80 rounded-xl border border-rose-200 text-[11px] text-rose-900 leading-snug font-medium flex items-start gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                                <span>Este archivo supera las dimensiones de la impresora. Debes corregir/reescalar el modelo en tu software CAD y reemplazarlo.</span>
+                              </div>
+                            )}
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* BLOQUE DE ALERTA ROJA PREVENTIVA: ENVÍO BLOQUEADO POR EXCESO DIMENSIONAL */}
+                  {hasOversizedFiles && (
+                    <div className="bg-rose-50 border-2 border-rose-400 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5 animate-in fade-in duration-200">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5">
+                          <AlertTriangle className="w-6 h-6 text-rose-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-extrabold text-rose-950 tracking-tight">
+                            Envío bloqueado: Pieza(s) superan las dimensiones máximas de la impresora (200 × 200 × 200 mm)
+                          </h4>
+                          <p className="text-xs text-rose-800 mt-1 leading-relaxed">
+                            Por protección del servicio y límite físico de las impresoras del HUB Tecnológico, los archivos <strong className="font-bold underline">NO serán enviados al servidor</strong> mientras alguna pieza supere los <strong className="font-bold">200 × 200 × 200 mm</strong>. Por favor, retira el archivo observado, corrige sus dimensiones en tu programa de diseño 3D y vuelve a cargarlo.
+                          </p>
+                        </div>
                       </div>
-                    );
-                  })}
+
+                      {/* Lista detallada de archivos con medidas */}
+                      <div className="bg-white/95 rounded-xl p-3 border border-rose-200 text-xs space-y-1.5">
+                        <span className="text-[10px] font-bold text-rose-900 uppercase tracking-wider block">
+                          Archivos observados por exceso dimensional ({oversizedFiles.length}):
+                        </span>
+                        <ul className="space-y-1">
+                          {oversizedFiles.map((item, idx) => (
+                            <li
+                              key={idx}
+                              className="flex flex-col sm:flex-row sm:items-center justify-between text-rose-900 text-xs font-mono bg-rose-50/70 px-2.5 py-1.5 rounded-lg border border-rose-200 gap-1"
+                            >
+                              <span className="font-semibold truncate max-w-md">&ldquo;{item.file.name}&rdquo;</span>
+                              <span className="font-bold shrink-0 text-rose-700">
+                                → {item.parsed.dimensionsMm.x} × {item.parsed.dimensionsMm.y} × {item.parsed.dimensionsMm.z} mm
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Botón rápido para retirar piezas no conformes */}
+                      <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStlLst((prev) => prev.filter((item) => !isOversized(item.parsed.dimensionsMm)));
+                            showToast('Se retiraron las piezas que superaban el límite de 200×200×200 mm.', 'info');
+                          }}
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-800 active:bg-rose-900 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Retirar piezas que superan el límite</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -855,13 +1015,18 @@ export function Print3DPortalView({
 
               <button
                 type="submit"
-                disabled={submitting || stlLst.length === 0 || !acceptedConditions}
+                disabled={submitting || stlLst.length === 0 || !acceptedConditions || hasOversizedFiles}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold text-sm shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
                     <span>Subiendo archivos y registrando...</span>
+                  </>
+                ) : hasOversizedFiles ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4 text-amber-300" />
+                    <span>Corrige las piezas que superan 200×200×200 mm para enviar</span>
                   </>
                 ) : (
                   <>
@@ -1290,6 +1455,13 @@ function ObservationPanel({
     expired: boolean;
   }>({ hours: 0, minutes: 0, seconds: 0, expired: false });
 
+  // Detección preventiva de archivos corregidos que superen el límite físico de 200×200×200 mm
+  const oversizedResubmitFiles = useMemo(
+    () => resubmitFiles.filter((item) => isOversized(item.parsed.dimensionsMm)),
+    [resubmitFiles]
+  );
+  const hasOversizedResubmitFiles = oversizedResubmitFiles.length > 0;
+
   useEffect(() => {
     // Si no tiene observationExpiresAt pero está observado, calcular 48 horas desde createdAt
     const expiresMs = request.observationExpiresAt
@@ -1400,45 +1572,146 @@ function ObservationPanel({
 
           {/* Tarjetas de archivos corregidos */}
           {resubmitFiles.length > 0 && (
-            <div className="space-y-2">
-              {resubmitFiles.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-3 bg-white rounded-xl border border-rose-200 text-xs"
-                >
-                  <div className="flex items-center gap-2">
-                    <Box className="w-4 h-4 text-indigo-600" />
-                    <span className="font-semibold text-slate-800">{item.file.name}</span>
-                    <span className="text-[10px] text-slate-400">
-                      ({item.parsed.dimensionsMm.x}×{item.parsed.dimensionsMm.y}×{item.parsed.dimensionsMm.z} mm)
-                    </span>
-                  </div>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                {resubmitFiles.map((item, idx) => {
+                  const oversized = isOversized(item.parsed.dimensionsMm);
+                  const xOver = item.parsed.dimensionsMm.x > MAX_PRINT_DIMENSION_MM;
+                  const yOver = item.parsed.dimensionsMm.y > MAX_PRINT_DIMENSION_MM;
+                  const zOver = item.parsed.dimensionsMm.z > MAX_PRINT_DIMENSION_MM;
 
-                  <div className="flex items-center gap-2">
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-3.5 rounded-xl border text-xs space-y-2 transition-all ${
+                        oversized
+                          ? 'bg-rose-50/90 border-2 border-rose-400 shadow-2xs'
+                          : 'bg-white border-rose-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                              oversized ? 'bg-rose-100 text-rose-700' : 'bg-indigo-50 text-indigo-600'
+                            }`}
+                          >
+                            {oversized ? (
+                              <AlertTriangle className="w-4 h-4 text-rose-600" />
+                            ) : (
+                              <Box className="w-4 h-4 text-indigo-600" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-800 block truncate">
+                              {item.file.name}
+                            </span>
+                            <div className="font-mono text-[10px] flex items-center gap-1 mt-0.5">
+                              <span
+                                className={
+                                  xOver
+                                    ? 'text-rose-700 font-bold bg-rose-200/80 px-1 rounded'
+                                    : 'text-slate-600'
+                                }
+                              >
+                                {item.parsed.dimensionsMm.x}mm{xOver ? ' (X)' : ''}
+                              </span>
+                              <span className="text-slate-400">×</span>
+                              <span
+                                className={
+                                  yOver
+                                    ? 'text-rose-700 font-bold bg-rose-200/80 px-1 rounded'
+                                    : 'text-slate-600'
+                                }
+                              >
+                                {item.parsed.dimensionsMm.y}mm{yOver ? ' (Y)' : ''}
+                              </span>
+                              <span className="text-slate-400">×</span>
+                              <span
+                                className={
+                                  zOver
+                                    ? 'text-rose-700 font-bold bg-rose-200/80 px-1 rounded'
+                                    : 'text-slate-600'
+                                }
+                              >
+                                {item.parsed.dimensionsMm.z}mm{zOver ? ' (Z)' : ''}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setResubmitFiles((prev) => prev.filter((_, i) => i !== idx))}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                            title="Remover pieza"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {oversized && (
+                        <div className="p-2 bg-rose-100/90 rounded-lg border border-rose-300 text-[11px] text-rose-900 space-y-1">
+                          <div className="inline-flex items-center gap-1 font-bold text-rose-950 uppercase tracking-wide text-[10px]">
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <span>SUPERA DIMENSIONES DE LA IMPRESORA (MÁX. 200×200×200 mm)</span>
+                          </div>
+                          <p className="leading-snug">
+                            Este archivo supera las dimensiones de la impresora. Debes corregir/reescalar el modelo en tu software CAD y reemplazarlo.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Banner de bloqueo en subsanación si hay archivos con exceso */}
+              {hasOversizedResubmitFiles && (
+                <div className="p-3.5 rounded-xl bg-rose-100/90 border border-rose-300 text-xs text-rose-950 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="leading-snug">
+                      <strong className="block font-bold">Subsanación bloqueada:</strong>
+                      Una o más piezas superan el límite de 200×200×200 mm. No se pueden enviar al servidor mientras excedan las dimensiones de la impresora del HUB Tecnológico.
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
                     <button
                       type="button"
-                      onClick={() => setResubmitFiles((prev) => prev.filter((_, i) => i !== idx))}
-                      className="p-1 text-slate-400 hover:text-rose-600"
+                      onClick={() => {
+                        setResubmitFiles((prev) => prev.filter((item) => !isOversized(item.parsed.dimensionsMm)));
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
+                      <span>Retirar piezas que superan el límite</span>
                     </button>
                   </div>
                 </div>
-              ))}
+              )}
 
               <div className="pt-2 flex justify-end">
                 <button
                   type="button"
-                  disabled={resubmitting}
+                  disabled={resubmitting || hasOversizedResubmitFiles}
                   onClick={onResubmit}
-                  className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-2"
+                  className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-2"
                 >
                   {resubmitting ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : hasOversizedResubmitFiles ? (
+                    <AlertTriangle className="w-4 h-4 text-amber-200" />
                   ) : (
                     <CheckCircle2 className="w-4 h-4" />
                   )}
-                  <span>Enviar Correcciones para Aprobación</span>
+                  <span>
+                    {hasOversizedResubmitFiles
+                      ? 'Corrige las piezas que superan 200×200×200 mm para subsanar'
+                      : 'Enviar Correcciones para Aprobación'}
+                  </span>
                 </button>
               </div>
             </div>
